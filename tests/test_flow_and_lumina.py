@@ -55,3 +55,44 @@ def test_tiny_vae_roundtrip():
     z, _ = vae.encode_to_latent(x)
     recon = vae.decode_from_latent(z)
     assert recon.shape == x.shape
+
+
+def test_vectorized_sparsity_correctness():
+    # Setup test matrix N x G
+    N, G = 50, 100
+    np.random.seed(123)
+    torch.manual_seed(123)
+    
+    mat_np = np.random.uniform(0, 10, (N, G)).astype(np.float32)
+    vals_np = np.random.uniform(0, 1, G).astype(np.float32)
+    
+    # Baseline CPU loop implementation
+    res_np = mat_np.copy()
+    for i in range(G):
+        ratio = vals_np[i]
+        thresh = np.percentile(res_np[:, i], ratio * 100)
+        res_np[res_np[:, i] < thresh, i] = 0.0
+
+    # Vectorized PyTorch implementation
+    mat_torch = torch.tensor(mat_np)
+    vals_tensor = torch.tensor(vals_np)
+    
+    sorted_data, _ = torch.sort(mat_torch, dim=0)
+    indices = vals_tensor * (N - 1)
+    indices_low = torch.floor(indices).long().clamp(0, N - 1)
+    indices_high = torch.ceil(indices).long().clamp(0, N - 1)
+    weight = indices - indices_low.float()
+    
+    val_low = torch.gather(sorted_data, 0, indices_low.unsqueeze(0))
+    val_high = torch.gather(sorted_data, 0, indices_high.unsqueeze(0))
+    thresh_tensor = val_low + weight.unsqueeze(0) * (val_high - val_low)
+    
+    mask = mat_torch < thresh_tensor
+    active_cols = (vals_tensor > 0.0).unsqueeze(0)
+    mask = mask & active_cols
+    mat_torch[mask] = 0.0
+    
+    res_pt = mat_torch.cpu().numpy()
+    
+    # Assert exact match
+    assert np.allclose(res_np, res_pt, atol=1e-6)
