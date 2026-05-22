@@ -50,6 +50,25 @@ class LuminaBlock(nn.Module):
         return x
 
 
+class LuminaFinalLayer(nn.Module):
+    """The final layer of the model, projecting features back to the latent space."""
+
+    def __init__(self, hidden_size: int, patch_size: int, out_channels: int):
+        super().__init__()
+        self.norm_final = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.linear = nn.Linear(hidden_size, patch_size * out_channels, bias=True)
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(hidden_size, 2 * hidden_size, bias=True),
+        )
+
+    def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
+        x = modulate(self.norm_final(x), shift, scale)
+        x = self.linear(x)
+        return x
+
+
 class LuminaTransformer(nn.Module):
     """
     The main velocity / noise / score prediction network for LuminaST.
@@ -86,10 +105,7 @@ class LuminaTransformer(nn.Module):
         ])
 
         out_channels = 1  # we predict velocity per patch element
-        self.final_layer = nn.Sequential(
-            nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6),
-            nn.Linear(hidden_size, patch_size * out_channels),
-        )
+        self.final_layer = LuminaFinalLayer(hidden_size, patch_size, out_channels)
 
         self.initialize_weights()
 
@@ -110,9 +126,10 @@ class LuminaTransformer(nn.Module):
             nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
             nn.init.constant_(block.adaLN_modulation[-1].bias, 0)
 
-        if hasattr(self.final_layer[-1], "weight"):
-            nn.init.constant_(self.final_layer[-1].weight, 0)
-            nn.init.constant_(self.final_layer[-1].bias, 0)
+        nn.init.constant_(self.final_layer.adaLN_modulation[-1].weight, 0)
+        nn.init.constant_(self.final_layer.adaLN_modulation[-1].bias, 0)
+        nn.init.constant_(self.final_layer.linear.weight, 0)
+        nn.init.constant_(self.final_layer.linear.bias, 0)
 
     @staticmethod
     def _get_1d_sincos_pos_embed(embed_dim: int, length: int):
@@ -137,7 +154,7 @@ class LuminaTransformer(nn.Module):
         for block in self.blocks:
             x = block(x, c)
 
-        x = self.final_layer(x)
+        x = self.final_layer(x, c)
         x = self.unpatchify(x)
         return x
 
