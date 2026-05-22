@@ -43,7 +43,14 @@ class LuminaImputer:
 
     @classmethod
     def from_config(cls, config: LuminaSTConfig) -> "LuminaImputer":
-        registry = CancerRegistry.default_pan_cancer()
+        registry = None
+        if config.cancer_registry_file and Path(config.cancer_registry_file).exists():
+            registry = CancerRegistry.from_file(config.cancer_registry_file)
+        elif config.cancer_types:
+            registry = CancerRegistry({c: i for i, c in enumerate(config.cancer_types)})
+        else:
+            registry = CancerRegistry.default_pan_cancer()
+
         transformer = LuminaTransformer(
             latent_dim=config.latent_dim,
             patch_size=config.patch_size,
@@ -97,9 +104,13 @@ class LuminaImputer:
 
         # 2. Reconstruct Transformer Model
         from ..data.cancer_registry import CancerRegistry
-        registry = CancerRegistry.default_pan_cancer()
+        registry = None
         if config.cancer_registry_file and Path(config.cancer_registry_file).exists():
             registry = CancerRegistry.from_file(config.cancer_registry_file)
+        elif config.cancer_types:
+            registry = CancerRegistry({c: i for i, c in enumerate(config.cancer_types)})
+        else:
+            registry = CancerRegistry.default_pan_cancer()
         
         num_classes = hparams.get("num_classes", len(registry))
 
@@ -179,9 +190,13 @@ class LuminaImputer:
                 cancer_type = cfg.cancer_types[0] if cfg.cancer_types else "UNKNOWN"
 
         # Resolve cancer index using the registry
-        registry = CancerRegistry.default_pan_cancer()
+        registry = None
         if cfg.cancer_registry_file and Path(cfg.cancer_registry_file).exists():
             registry = CancerRegistry.from_file(cfg.cancer_registry_file)
+        elif cfg.cancer_types:
+            registry = CancerRegistry({c: i for i, c in enumerate(cfg.cancer_types)})
+        else:
+            registry = CancerRegistry.default_pan_cancer()
         cancer_idx = registry[cancer_type]
 
         # 2. Get expression matrix
