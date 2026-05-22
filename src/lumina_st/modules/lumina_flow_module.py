@@ -100,6 +100,7 @@ class LuminaFlowModule(pl.LightningModule):
         t_forward: Optional[float] = None,
         ode_style: str = "correct",
         uncond_class: str = "correct",
+        cfg_decay: Optional[str] = None,
     ) -> torch.Tensor:
         """
         Perform guided imputation starting from partially noised latents.
@@ -114,9 +115,10 @@ class LuminaFlowModule(pl.LightningModule):
                        matching the stPainter bug).
             uncond_class: Either "correct" (use y_embedder.num_classes) or
                           "baseline" (use index 0, matching the stPainter bug).
+            cfg_decay: Guidance decay schedule. None for constant, "linear", or "cosine".
         """
-        cfg_scale = cfg_scale or self.config.guidance_scale
-        t_forward = t_forward or self.config.t_forward
+        cfg_scale = cfg_scale if cfg_scale is not None else self.config.guidance_scale
+        t_forward = t_forward if t_forward is not None else self.config.t_forward
 
         self.ema_model.eval()
         batch_size = z.shape[0]
@@ -138,36 +140,45 @@ class LuminaFlowModule(pl.LightningModule):
 
         num_steps = self.config.num_sampling_steps
 
-        # 3. ODE Integration Loop
+        # Pre-allocate inputs to avoid CPU-GPU synchronization and dynamic memory allocation inside the loop
+        z_in = torch.empty(batch_size * 2, z.shape[1], device=device, dtype=z.dtype)
+        y_in = torch.cat([y, null_y], dim=0)
+
+        # 3. Pre-compute the time steps and tile them on the GPU
         if ode_style == "baseline":
-            # Reproduce baseline bug: integrate from 0.0 to 1.0
             dt = 1.0 / max(num_steps, 1)
-            for step in range(num_steps):
-                t_current = torch.full((batch_size,), step * dt, device=device)
-
-                z_in = torch.cat([z_t, z_t], dim=0)
-                t_in = torch.cat([t_current, t_current], dim=0)
-                y_in = torch.cat([y, null_y], dim=0)
-
-                out = self.ema_model(z_in, t_in, y_in)
-                v_cond, v_uncond = torch.split(out, batch_size, dim=0)
-                v_guided = v_uncond + cfg_scale * (v_cond - v_uncond)
-
-                z_t = z_t + v_guided * dt
+            t_grid = torch.arange(num_steps, device=device, dtype=z.dtype) * dt
         else:
-            # "correct" style: integrate forward from t_forward to 1.0
             dt = (1.0 - t_forward) / max(num_steps, 1)
-            for step in range(num_steps):
-                t_current = torch.full((batch_size,), t_forward + step * dt, device=device)
+            t_grid = t_forward + torch.arange(num_steps, device=device, dtype=z.dtype) * dt
 
-                z_in = torch.cat([z_t, z_t], dim=0)
-                t_in = torch.cat([t_current, t_current], dim=0)
-                y_in = torch.cat([y, null_y], dim=0)
+        t_in_matrix = t_grid.unsqueeze(1).repeat(1, batch_size * 2)
 
-                out = self.ema_model(z_in, t_in, y_in)
-                v_cond, v_uncond = torch.split(out, batch_size, dim=0)
-                v_guided = v_uncond + cfg_scale * (v_cond - v_uncond)
+        # 4. ODE Integration Loop
+        for step in range(num_steps):
+            # Slices/assignments are in-place, avoiding CUDA allocations
+            z_in[:batch_size] = z_t
+            z_in[batch_size:] = z_t
+            t_in = t_in_matrix[step]
 
-                z_t = z_t + v_guided * dt
+            # Dynamic CFG Schedule (Priority 5)
+            if cfg_decay is not None and num_steps > 1:
+                ratio = step / (num_steps - 1)
+                if cfg_decay == "linear":
+                    current_cfg = cfg_scale - (cfg_scale - 1.0) * ratio
+                elif cfg_decay == "cosine":
+                    import math
+                    current_cfg = 1.0 + (cfg_scale - 1.0) * (1.0 + math.cos(math.pi * ratio)) / 2.0
+                else:
+                    current_cfg = cfg_scale
+            else:
+                current_cfg = cfg_scale
+
+            out = self.ema_model(z_in, t_in, y_in)
+            v_cond = out[:batch_size]
+            v_uncond = out[batch_size:]
+            v_guided = v_uncond + current_cfg * (v_cond - v_uncond)
+
+            z_t = z_t + v_guided * dt
 
         return z_t
