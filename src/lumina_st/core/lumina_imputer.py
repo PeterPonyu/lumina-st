@@ -25,13 +25,21 @@ class LuminaImputer:
     Main entry point for LuminaST.
 
     Example:
-        imputer = LuminaImputer.from_checkpoint("checkpoints/lumina_50.ckpt")
+        imputer = LuminaImputer.from_checkpoint("checkpoints/lumina_50.ckpt", "checkpoints/vae_50.ckpt")
         enhanced = imputer.enhance(st_adata)
     """
 
     def __init__(self, config: LuminaSTConfig, module: LuminaFlowModule):
         self.config = config
         self.module = module
+        # Preload Sparsity Data (matching baseline)
+        self.sparsity_ratio = None
+        if config.gene_sparsity_ratio_file and Path(config.gene_sparsity_ratio_file).exists():
+            import pandas as pd
+            try:
+                self.sparsity_ratio = pd.read_csv(config.gene_sparsity_ratio_file, index_col=0).squeeze()
+            except Exception as e:
+                print(f"Warning: Failed to load sparsity file: {e}")
 
     @classmethod
     def from_config(cls, config: LuminaSTConfig) -> "LuminaImputer":
@@ -49,11 +57,104 @@ class LuminaImputer:
         module = LuminaFlowModule(config, transformer)
         return cls(config, module)
 
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        vae_checkpoint_path: str,
+        **kwargs
+    ) -> "LuminaImputer":
+        from ..latents.scvi_vae import SCVILatentEncoder
+
+        # 1. Load the diffusion/transformer checkpoint
+        ckpt = torch.load(checkpoint_path, map_location='cpu')
+        hparams = ckpt.get("hyper_parameters", {})
+
+        # Map baseline stPainter hyperparams to LuminaSTConfig fields
+        latent_dim = hparams.get("latent_size", 50)
+        hidden_size = hparams.get("hidden_size_sit", 256)
+        depth = hparams.get("depth", 8)
+        num_heads = hparams.get("num_heads", 8)
+        mlp_ratio = hparams.get("mlp_ratio", 4.0)
+        class_dropout_prob = hparams.get("class_dropout_prob", 0.1)
+        patch_size = hparams.get("patch_size", 1)
+
+        # Merge with explicitly passed configuration args
+        config_args = {
+            "latent_dim": latent_dim,
+            "hidden_size": hidden_size,
+            "depth": depth,
+            "num_heads": num_heads,
+            "mlp_ratio": mlp_ratio,
+            "class_dropout_prob": class_dropout_prob,
+            "patch_size": patch_size,
+        }
+        for k, v in kwargs.items():
+            if k in LuminaSTConfig.model_fields:
+                config_args[k] = v
+
+        config = LuminaSTConfig(**config_args)
+
+        # 2. Reconstruct Transformer Model
+        from ..data.cancer_registry import CancerRegistry
+        registry = CancerRegistry.default_pan_cancer()
+        if config.cancer_registry_file and Path(config.cancer_registry_file).exists():
+            registry = CancerRegistry.from_file(config.cancer_registry_file)
+        
+        num_classes = hparams.get("num_classes", len(registry))
+
+        transformer = LuminaTransformer(
+            latent_dim=config.latent_dim,
+            patch_size=config.patch_size,
+            hidden_size=config.hidden_size,
+            depth=config.depth,
+            num_heads=config.num_heads,
+            mlp_ratio=config.mlp_ratio,
+            num_classes=num_classes,
+            class_dropout_prob=config.class_dropout_prob,
+        )
+
+        # 3. Load and reconstruct SCVILatentEncoder VAE
+        n_input = hparams.get("input_size", 10000)
+        n_batch = hparams.get("num_classes", len(registry))
+        n_hidden = hparams.get("hidden_size_vae", 256)
+        n_latent = hparams.get("latent_size", 50)
+        n_layers = hparams.get("num_layer", 4)
+
+        vae_encoder = SCVILatentEncoder.from_checkpoint(
+            checkpoint_path=vae_checkpoint_path,
+            n_input=n_input,
+            n_batch=n_batch,
+            n_hidden=n_hidden,
+            n_latent=n_latent,
+            n_layers=n_layers
+        )
+
+        # 4. Instantiate LuminaFlowModule
+        module = LuminaFlowModule(config, transformer, vae=vae_encoder)
+
+        # 5. Load flow weights from checkpoint state_dict
+        state_dict = ckpt.get("state_dict", ckpt)
+        clean_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith("model."):
+                clean_state_dict["transformer." + k[6:]] = v
+            elif k.startswith("ema_model."):
+                clean_state_dict[k] = v
+            else:
+                clean_state_dict[k] = v
+
+        module.load_state_dict(clean_state_dict, strict=False)
+        return cls(config, module)
+
     def enhance(
         self,
         st_adata: ad.AnnData,
         cancer_type: Optional[str] = None,
         layer: Optional[str] = None,
+        ode_style: str = "correct",
+        uncond_class: str = "correct",
+        sparsity_style: str = "gene",
     ) -> ad.AnnData:
         """
         Full guided enhancement / imputation pipeline.
@@ -77,6 +178,12 @@ class LuminaImputer:
             else:
                 cancer_type = cfg.cancer_types[0] if cfg.cancer_types else "UNKNOWN"
 
+        # Resolve cancer index using the registry
+        registry = CancerRegistry.default_pan_cancer()
+        if cfg.cancer_registry_file and Path(cfg.cancer_registry_file).exists():
+            registry = CancerRegistry.from_file(cfg.cancer_registry_file)
+        cancer_idx = registry[cancer_type]
+
         # 2. Get expression matrix
         if layer is not None and layer in adata.layers:
             expr = adata.layers[layer]
@@ -87,24 +194,90 @@ class LuminaImputer:
             expr = expr.toarray()
 
         x = torch.from_numpy(expr).float()
+        
+        # Move inputs to correct device if model is on a GPU
+        device = next(self.module.parameters()).device if list(self.module.parameters()) else torch.device("cpu")
+        x = x.to(device)
 
         # 3. Encode to latent space
+        y = torch.full((x.shape[0],), cancer_idx, dtype=torch.long, device=device)
         if self.module.vae is not None:
-            y = torch.full((x.shape[0],), self.module.transformer.y_embedder.num_classes - 1)  # placeholder
-            z_obs, _ = self.module.vae.encode_to_latent(x, y)
+            z_obs, info = self.module.vae.encode_to_latent(x, y)
+            library = info.get("library", None)
         else:
             # Assume data is already in latent space or use identity
             z_obs = x
+            library = None
 
         # 4. Run guided enhancement in latent space
-        y = torch.full((z_obs.shape[0],), 0, dtype=torch.long, device=z_obs.device)  # will be overridden by registry later
-        z_enhanced = self.module.enhance_latent(z_obs, y)
+        z_enhanced = self.module.enhance_latent(
+            z_obs,
+            y,
+            ode_style=ode_style,
+            uncond_class=uncond_class,
+        )
 
         # 5. Decode back (if VAE present)
         if self.module.vae is not None:
-            x_imputed = self.module.vae.decode_from_latent(z_enhanced, y)
+            x_imputed = self.module.vae.decode_from_latent(z_enhanced, y, library=library)
         else:
             x_imputed = z_enhanced
+
+        # Optional: basic post-processing (sparsity)
+        if cfg.apply_sparsity and x_imputed.shape[1] == adata.n_vars:
+            if sparsity_style == "gene" and self.sparsity_ratio is not None:
+                # Apply baseline-matching per-gene sparsity constraint
+                import pandas as pd
+                vals = None
+                if isinstance(self.sparsity_ratio, pd.DataFrame) and cancer_type in self.sparsity_ratio:
+                    vals = self.sparsity_ratio[cancer_type].values
+                elif isinstance(self.sparsity_ratio, pd.Series):
+                    vals = self.sparsity_ratio.values
+                
+                if vals is not None and len(vals) == x_imputed.shape[1]:
+                    vals_tensor = torch.tensor(vals, dtype=x_imputed.dtype, device=x_imputed.device)
+                    N, G = x_imputed.shape
+                    
+                    # Sort each column independently
+                    sorted_data, _ = torch.sort(x_imputed, dim=0)
+                    
+                    # Calculate index interpolation bounds
+                    indices = vals_tensor * (N - 1)
+                    indices_low = torch.floor(indices).long().clamp(0, N - 1)
+                    indices_high = torch.ceil(indices).long().clamp(0, N - 1)
+                    weight = indices - indices_low.float()
+                    
+                    # Gather values from sorted_data
+                    val_low = torch.gather(sorted_data, 0, indices_low.unsqueeze(0))
+                    val_high = torch.gather(sorted_data, 0, indices_high.unsqueeze(0))
+                    
+                    # Interpolate thresholds
+                    thresh = val_low + weight.unsqueeze(0) * (val_high - val_low)
+                    
+                    # Apply threshold mask
+                    mask = x_imputed < thresh
+                    active_cols = (vals_tensor > 0.0).unsqueeze(0)
+                    mask = mask & active_cols
+                    x_imputed[mask] = 0.0
+                    
+                    # Boundary conditions: ratio >= 1.0 => column must be all zeros
+                    zero_cols = (vals_tensor >= 1.0).unsqueeze(0)
+                    x_imputed = torch.where(zero_cols, torch.zeros_like(x_imputed), x_imputed)
+            else:
+                # Simple top-percentile thresholding per cell
+                sorted_data, _ = torch.sort(x_imputed, dim=1)
+                G = x_imputed.shape[1]
+                idx_float = cfg.sparsity_percentile * (G - 1)
+                idx_low = int(np.floor(idx_float))
+                idx_high = int(np.ceil(idx_float))
+                weight = idx_float - idx_low
+                
+                val_low = sorted_data[:, idx_low]
+                val_high = sorted_data[:, idx_high]
+                thresh = val_low + weight * (val_high - val_low)
+                
+                mask = x_imputed < thresh.unsqueeze(1)
+                x_imputed[mask] = 0.0
 
         # 6. Store results
         adata.obsm["latent_observed"] = z_obs.detach().cpu().numpy()
@@ -116,15 +289,8 @@ class LuminaImputer:
             # Latent space only
             adata.layers["imputed_latent"] = x_imputed.detach().cpu().numpy()
 
-        # Optional: basic post-processing (sparsity)
-        if cfg.apply_sparsity and "imputed" in adata.layers:
-            # Simple top-percentile thresholding per cell (can be improved)
-            mat = adata.layers["imputed"]
-            thresh = np.percentile(mat, cfg.sparsity_percentile * 100, axis=1, keepdims=True)
-            mat[mat < thresh] = 0
-            adata.layers["imputed"] = mat
-
         return adata
+
 
     def fit(self, trainer: Optional[pl.Trainer] = None, **trainer_kwargs):
         """Train the flow model on the reference atlas."""

@@ -1,0 +1,22 @@
+name_to_idx:
+  UNKNOWN: 0
+  OV: 1
+  UVM: 2
+  SCLC: 3
+  TGCT: 4
+  GBM: 5
+  COAD: 6
+  KIRC: 7
+  THYM: 8
+  STAD: 9
+  THCA: 10
+  ESCC: 11
+  NSCLC: 12
+  PAAD: 13
+  LAML: 14
+  PRAD: 15
+  LIHC: 16
+  BRCA: 17
+  BLCA: 18
+  CESC: 19
+  SARC: 20
