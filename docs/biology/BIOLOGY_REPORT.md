@@ -13,7 +13,7 @@ This report exercises those outputs on two data sources: a synthetic reference +
 ### wide
 
 - source: `results/benchmark/enhanced/wide.h5ad`
-- cells: 300, genes: 120, runtime: 3.9s, device: `cpu (precomputed)`
+- cells: 300, genes: 120, runtime: 7.7s, device: `cpu (precomputed)`
 
 **Enhanced-latent UMAP** (colored by Leiden + true label when available)
 
@@ -35,12 +35,26 @@ This report exercises those outputs on two data sources: a synthetic reference +
 
 ![marker_volcano](./synthetic/wide/figures/marker_volcano.png)
 
+**Comparative UMAPs** (raw PCA / `latent_observed` / `latent_enhanced`)
+
+![comparative_umaps](./synthetic/wide/figures/comparative_umaps.png)
+
+**Canonical-lineage-marker dot plot** on imputed expression per Leiden cluster
+
+![lineage_dotplot](./synthetic/wide/figures/lineage_dotplot.png)
+
+**Sankey of Leiden → in-data label**
+
+![sankey](./synthetic/wide/figures/leiden_to_label_sankey.png)
+
+[interactive HTML](./synthetic/wide/figures/leiden_to_label_sankey.html)
+
 ## Real
 
 ### CESC
 
 - source: `data/baselines/stpainter/processed_data/st_CESC_test.h5ad`
-- cells: 4,000, genes: 10,000, runtime: 26.7s, device: `cuda`
+- cells: 4,000, genes: 10,000, runtime: 40.5s, device: `cuda`
 
 **Spatial expression — raw vs LuminaST-imputed (top-variance genes)**
 
@@ -66,6 +80,20 @@ This report exercises those outputs on two data sources: a synthetic reference +
 **Marker discovery on imputed expression** (Wilcoxon per Leiden cluster)
 
 ![marker_volcano](./real/CESC/figures/marker_volcano.png)
+
+**Comparative UMAPs** (raw PCA / `latent_observed` / `latent_enhanced`)
+
+![comparative_umaps](./real/CESC/figures/comparative_umaps.png)
+
+**Canonical-lineage-marker dot plot** on imputed expression per Leiden cluster
+
+![lineage_dotplot](./real/CESC/figures/lineage_dotplot.png)
+
+**Sankey of Leiden → in-data label**
+
+![sankey](./real/CESC/figures/leiden_to_label_sankey.png)
+
+[interactive HTML](./real/CESC/figures/leiden_to_label_sankey.html)
 
 **Pan-cancer panel — one column per on-disk baseline slice (real mode only)**
 

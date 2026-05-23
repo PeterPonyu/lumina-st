@@ -4,14 +4,20 @@
       "source": "results/benchmark/enhanced/wide.h5ad",
       "n_obs": 300,
       "n_vars": 120,
-      "runtime_s": 3.8834416039990174,
+      "runtime_s": 7.704485917000056,
       "device": "cpu (precomputed)",
       "figures": {
         "latent_umap": "latent_umap.png",
         "pergene_pearson_box": "pergene_pearson_box.png",
         "gene_gene_corrheatmap": "gene_gene_corrheatmap.png",
         "sparsity_histogram": "sparsity_histogram.png",
-        "marker_volcano": "marker_volcano.png"
+        "marker_volcano": "marker_volcano.png",
+        "leiden_to_label_sankey": {
+          "png": "leiden_to_label_sankey.png",
+          "html": "leiden_to_label_sankey.html"
+        },
+        "comparative_umaps": "comparative_umaps.png",
+        "lineage_dotplot": "lineage_dotplot.png"
       }
     }
   },
@@ -21,7 +27,7 @@
       "source": "data/baselines/stpainter/processed_data/st_CESC_test.h5ad",
       "n_obs": 4000,
       "n_vars": 10000,
-      "runtime_s": 26.728459504000057,
+      "runtime_s": 40.54356122099853,
       "device": "cuda",
       "figures": {
         "spatial_markers": [
@@ -32,7 +38,13 @@
         "pergene_pearson_box": "pergene_pearson_box.png",
         "gene_gene_corrheatmap": "gene_gene_corrheatmap.png",
         "sparsity_histogram": "sparsity_histogram.png",
-        "marker_volcano": "marker_volcano.png"
+        "marker_volcano": "marker_volcano.png",
+        "leiden_to_label_sankey": {
+          "png": "leiden_to_label_sankey.png",
+          "html": "leiden_to_label_sankey.html"
+        },
+        "comparative_umaps": "comparative_umaps.png",
+        "lineage_dotplot": "lineage_dotplot.png"
       },
       "cancer_panel": [
         "CESC",
