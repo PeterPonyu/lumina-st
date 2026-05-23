@@ -5,12 +5,15 @@ Run with:
     pytest tests/ -q --tb=line
 """
 
+import numpy as np
+import anndata as ad
+import pytorch_lightning as pl
 import pytest
 import torch
-import numpy as np
 
 from lumina_st.flow import create_flow_transport, LinearPath
 from lumina_st.config.lumina_config import LuminaSTConfig
+from lumina_st.core.lumina_imputer import LuminaImputer
 from lumina_st.latents.tiny_vae import TinyVAE
 from lumina_st.models.lumina_transformer import LuminaTransformer
 
@@ -96,3 +99,35 @@ def test_vectorized_sparsity_correctness():
     
     # Assert exact match
     assert np.allclose(res_np, res_pt, atol=1e-6)
+
+
+def test_lumina_imputer_fit_runs_one_training_batch(tmp_path):
+    rng = np.random.default_rng(7)
+    adata = ad.AnnData(
+        X=rng.normal(size=(8, 8)).astype(np.float32),
+        obs={"cancer_type": ["COAD"] * 8},
+    )
+    cfg = LuminaSTConfig(
+        latent_dim=8,
+        hidden_size=16,
+        depth=1,
+        num_heads=2,
+        vae_batch_key="cancer_type",
+        batch_size=4,
+        num_workers=0,
+        max_epochs=1,
+        output_dir=tmp_path,
+    )
+    imputer = LuminaImputer.from_config(cfg)
+    trainer = pl.Trainer(
+        fast_dev_run=1,
+        accelerator="cpu",
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+    )
+
+    returned = imputer.fit(trainer=trainer, reference_adata=adata)
+
+    assert returned is trainer
+    assert trainer.global_step == 1
