@@ -57,6 +57,9 @@ from scripts.visualize._plot_utils import (
     to_dense,
     topn_variable_genes,
 )
+from scripts.visualize.fig_sankey_leiden_to_annotation import render_sankey
+from scripts.visualize.fig_comparative_umaps import render_comparative_umaps
+from scripts.visualize.fig_lineage_dotplot import render_lineage_dotplot
 
 from lumina_st.config.lumina_config import LuminaSTConfig
 from lumina_st.core.lumina_imputer import LuminaImputer
@@ -439,6 +442,27 @@ def render_figures_for_adata(adata: AnnData, out_dir: Path) -> Dict[str, Any]:
     if p.exists():
         figures["marker_volcano"] = p.name
 
+    # === Wave 1 ===
+
+    # 7. Sankey Leiden → in-data label
+    png_p = out_dir / "leiden_to_label_sankey.png"
+    html_p = out_dir / "leiden_to_label_sankey.html"
+    render_sankey(adata, png_p, html_p)
+    if png_p.exists():
+        figures["leiden_to_label_sankey"] = {"png": png_p.name, "html": html_p.name if html_p.exists() else None}
+
+    # 8. Comparative UMAPs (raw PCA / latent_observed / latent_enhanced)
+    p = out_dir / "comparative_umaps.png"
+    render_comparative_umaps(adata, p)
+    if p.exists():
+        figures["comparative_umaps"] = p.name
+
+    # 9. Lineage-marker dot plot
+    p = out_dir / "lineage_dotplot.png"
+    render_lineage_dotplot(adata, p)
+    if p.exists():
+        figures["lineage_dotplot"] = p.name
+
     return figures
 
 
@@ -488,12 +512,47 @@ def write_report(
                 ("gene_gene_corrheatmap","**Top-50 HVG gene-gene correlation matrix, raw vs imputed**"),
                 ("sparsity_histogram",   "**Per-cell sparsity histogram, raw vs imputed**"),
                 ("marker_volcano",       "**Marker discovery on imputed expression** (Wilcoxon per Leiden cluster)"),
+                ("comparative_umaps",    "**Comparative UMAPs** (raw PCA / `latent_observed` / `latent_enhanced`)"),
+                ("lineage_dotplot",      "**Canonical-lineage-marker dot plot** on imputed expression per Leiden cluster"),
             ]:
                 if key in figs:
                     md.append(label)
                     md.append("")
                     md.append(f"![{key}]({fig_rel(figs[key])})")
                     md.append("")
+            if "leiden_to_label_sankey" in figs:
+                obj = figs["leiden_to_label_sankey"]
+                md.append("**Sankey of Leiden → in-data label**")
+                md.append("")
+                md.append(f"![sankey]({fig_rel(obj['png'])})")
+                if obj.get("html"):
+                    md.append(f"\n[interactive HTML]({fig_rel(obj['html'])})")
+                md.append("")
+            # Glob-driven fallback: catch any figure file on disk we did not embed above
+            try:
+                fig_dir = (docs_dir / mode / dataset / "figures").resolve()
+                if fig_dir.exists():
+                    embedded = set()
+                    for v in figs.values():
+                        if isinstance(v, str):
+                            embedded.add(v)
+                        elif isinstance(v, list):
+                            embedded.update([x for x in v if isinstance(x, str)])
+                        elif isinstance(v, dict):
+                            for vv in v.values():
+                                if isinstance(vv, str):
+                                    embedded.add(vv)
+                    if payload.get("cancer_panel"):
+                        embedded.add("cancer_panel.png")
+                    leftover = sorted(p.name for p in fig_dir.glob("*.png") if p.name not in embedded)
+                    if leftover:
+                        md.append("**Additional figures (auto-detected on disk)**")
+                        md.append("")
+                        for fn in leftover:
+                            md.append(f"![{fn}]({fig_rel(fn)})")
+                        md.append("")
+            except Exception:
+                pass
             if payload.get("cancer_panel"):
                 md.append("**Pan-cancer panel — one column per on-disk baseline slice (real mode only)**")
                 md.append("")
