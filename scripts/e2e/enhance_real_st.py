@@ -21,6 +21,7 @@ judge whether the model is learning something useful.
 """
 
 import argparse
+import sys
 from pathlib import Path
 import numpy as np
 import scanpy as sc
@@ -28,6 +29,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from lumina_st.config.lumina_config import LuminaSTConfig
+from lumina_st.latents.tiny_vae import TinyVAE
 from lumina_st.latents.scvi_vae import SCVILatentEncoder
 from lumina_st.models.lumina_transformer import LuminaTransformer
 from lumina_st.modules.lumina_flow_module import LuminaFlowModule
@@ -36,14 +38,33 @@ from lumina_st.data.datasets import ReferenceAtlasDataset
 from lumina_st.data.cancer_registry import CancerRegistry
 from lumina_st.metrics.enhancement_evaluator import EnhancementEvaluator
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st
+
 try:
     from scvi.model import SCVI
 except ImportError:
     SCVI = None
 
 
+def get_device() -> torch.device:
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+
+    try:
+        probe = torch.zeros(1, device="cuda")
+        _ = torch.relu(probe)
+        return torch.device("cuda")
+    except Exception as exc:
+        print(f"[WARNING] CUDA is available but failed a kernel probe: {exc}")
+        print("          Falling back to CPU for this run.")
+        return torch.device("cpu")
+
+
 def main(args):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     print(f"Using device: {device}")
 
     # === Smart data source selection ===
@@ -73,10 +94,6 @@ def main(args):
     else:
         print("\n[INFO] No real data provided and no baseline data found locally.")
         print("       Falling back to high-fidelity synthetic data (mimics stPainter usage).\n")
-        import sys
-        from pathlib import Path as _Path
-        sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
-        from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st
 
         ref, target, cancer_names = generate_synthetic_reference_and_st(
             n_ref_cells=2500, n_st_cells=500, n_genes=180, n_cancer_types=4, seed=42
@@ -124,8 +141,6 @@ def main(args):
         else:
             print("[WARNING] scvi-tools not found in current env. Using TinyVAE for fast synthetic demo.")
             print("          For real results, run with: conda run -n dl python ...")
-            from lumina_st.latents.tiny_vae import TinyVAE
-            # We will bypass the full SCVI path and use TinyVAE directly in the training loop below
             scvi_model = None  # signal to use TinyVAE path
 
     # 2. Prepare datasets
@@ -144,8 +159,19 @@ def main(args):
         class_dropout_prob=0.1,
     )
 
-    # Wrap real SCVI
-    vae_wrapper = SCVILatentEncoder(scvi_model)
+    if scvi_model is None:
+        vae_wrapper = TinyVAE(input_dim=ref.n_vars, latent_dim=cfg.latent_dim).to(device)
+        vae_opt = torch.optim.AdamW(vae_wrapper.parameters(), lr=cfg.lr)
+        x_ref = torch.as_tensor(np.asarray(ref.X), dtype=torch.float32, device=device)
+        print("Training TinyVAE fallback encoder...")
+        for epoch in range(min(5, cfg.max_epochs)):
+            vae_loss = vae_wrapper(x_ref)["loss"]
+            vae_opt.zero_grad()
+            vae_loss.backward()
+            vae_opt.step()
+            print(f"  TinyVAE epoch {epoch+1} - loss {vae_loss.item():.4f}")
+    else:
+        vae_wrapper = SCVILatentEncoder(scvi_model)
 
     module = LuminaFlowModule(cfg, transformer, vae=vae_wrapper).to(device)
 
