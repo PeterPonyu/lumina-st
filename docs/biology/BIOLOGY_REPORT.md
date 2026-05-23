@@ -1,0 +1,82 @@
+# LuminaST Biology Figure Pack
+
+LuminaST is a latent flow-matching model for spatial transcriptomics enhancement. Given a tissue slice with sparse, noisy gene measurements, it produces:
+
+- a **dense imputed expression matrix** (`layers['imputed']`) that fills in dropouts while preserving the slice's spatial structure;
+- an **enhanced latent embedding** (`obsm['latent_enhanced']`) optimised for tissue-domain clustering and marker discovery;
+- a **post-processed sparsity profile** matched to the expected per-gene detection rate for the cancer type.
+
+This report exercises those outputs on two data sources: a synthetic reference + ST pair (fully reproducible from the sweep artifacts), and a panel of on-disk spatial transcriptomics cancer slices that LuminaST imputes in place. No online downloads are required.
+
+## Synthetic
+
+### wide
+
+- source: `results/benchmark/enhanced/wide.h5ad`
+- cells: 300, genes: 120, runtime: 3.9s, device: `cpu (precomputed)`
+
+**Enhanced-latent UMAP** (colored by Leiden + true label when available)
+
+![latent_umap](./synthetic/wide/figures/latent_umap.png)
+
+**Per-gene Pearson, HVG vs non-HVG**
+
+![pergene_pearson_box](./synthetic/wide/figures/pergene_pearson_box.png)
+
+**Top-50 HVG gene-gene correlation matrix, raw vs imputed**
+
+![gene_gene_corrheatmap](./synthetic/wide/figures/gene_gene_corrheatmap.png)
+
+**Per-cell sparsity histogram, raw vs imputed**
+
+![sparsity_histogram](./synthetic/wide/figures/sparsity_histogram.png)
+
+**Marker discovery on imputed expression** (Wilcoxon per Leiden cluster)
+
+![marker_volcano](./synthetic/wide/figures/marker_volcano.png)
+
+## Real
+
+### CESC
+
+- source: `data/baselines/stpainter/processed_data/st_CESC_test.h5ad`
+- cells: 4,000, genes: 10,000, runtime: 26.7s, device: `cuda`
+
+**Spatial expression — raw vs LuminaST-imputed (top-variance genes)**
+
+![spatial_marker_DSC3.png](./real/CESC/figures/spatial_marker_DSC3.png)
+![spatial_marker_HSPB1.png](./real/CESC/figures/spatial_marker_HSPB1.png)
+
+**Enhanced-latent UMAP** (colored by Leiden + true label when available)
+
+![latent_umap](./real/CESC/figures/latent_umap.png)
+
+**Per-gene Pearson, HVG vs non-HVG**
+
+![pergene_pearson_box](./real/CESC/figures/pergene_pearson_box.png)
+
+**Top-50 HVG gene-gene correlation matrix, raw vs imputed**
+
+![gene_gene_corrheatmap](./real/CESC/figures/gene_gene_corrheatmap.png)
+
+**Per-cell sparsity histogram, raw vs imputed**
+
+![sparsity_histogram](./real/CESC/figures/sparsity_histogram.png)
+
+**Marker discovery on imputed expression** (Wilcoxon per Leiden cluster)
+
+![marker_volcano](./real/CESC/figures/marker_volcano.png)
+
+**Pan-cancer panel — one column per on-disk baseline slice (real mode only)**
+
+![cancer_panel](./real/cancer_panel.png)
+
+Cancers rendered: CESC, COAD, LIHC, NSCLC, OV, PRAD
+
+---
+
+Reproduce with (dl env required for the RTX 5090):
+
+```bash
+conda run --no-capture-output -n dl python scripts/visualize/biology_figures.py --mode all
+```
