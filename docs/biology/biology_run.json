@@ -4,7 +4,7 @@
       "source": "results/benchmark/enhanced/wide.h5ad",
       "n_obs": 300,
       "n_vars": 120,
-      "runtime_s": 7.704485917000056,
+      "runtime_s": 10.878145085000142,
       "device": "cpu (precomputed)",
       "figures": {
         "latent_umap": "latent_umap.png",
@@ -17,7 +17,8 @@
           "html": "leiden_to_label_sankey.html"
         },
         "comparative_umaps": "comparative_umaps.png",
-        "lineage_dotplot": "lineage_dotplot.png"
+        "lineage_dotplot": "lineage_dotplot.png",
+        "pcc_ssim_nhvg_sweep": "pcc_ssim_nhvg_sweep.png"
       }
     }
   },
@@ -27,7 +28,7 @@
       "source": "data/baselines/stpainter/processed_data/st_CESC_test.h5ad",
       "n_obs": 4000,
       "n_vars": 10000,
-      "runtime_s": 40.54356122099853,
+      "runtime_s": 52.97799769500125,
       "device": "cuda",
       "figures": {
         "spatial_markers": [
@@ -44,7 +45,10 @@
           "html": "leiden_to_label_sankey.html"
         },
         "comparative_umaps": "comparative_umaps.png",
-        "lineage_dotplot": "lineage_dotplot.png"
+        "lineage_dotplot": "lineage_dotplot.png",
+        "pcc_ssim_nhvg_sweep": "pcc_ssim_nhvg_sweep.png",
+        "spatial_marker_grid": "spatial_marker_grid.png",
+        "gene_holdout_recovery": "gene_holdout_recovery.png"
       },
       "cancer_panel": [
         "CESC",
