@@ -4,7 +4,7 @@
       "source": "results/benchmark/enhanced/wide.h5ad",
       "n_obs": 300,
       "n_vars": 120,
-      "runtime_s": 10.878145085000142,
+      "runtime_s": 10.251453349999792,
       "device": "cpu (precomputed)",
       "figures": {
         "latent_umap": "latent_umap.png",
@@ -28,7 +28,7 @@
       "source": "data/baselines/stpainter/processed_data/st_CESC_test.h5ad",
       "n_obs": 4000,
       "n_vars": 10000,
-      "runtime_s": 52.97799769500125,
+      "runtime_s": 52.606578920000175,
       "device": "cuda",
       "figures": {
         "spatial_markers": [
@@ -48,7 +48,61 @@
         "lineage_dotplot": "lineage_dotplot.png",
         "pcc_ssim_nhvg_sweep": "pcc_ssim_nhvg_sweep.png",
         "spatial_marker_grid": "spatial_marker_grid.png",
-        "gene_holdout_recovery": "gene_holdout_recovery.png"
+        "gene_holdout_recovery": "gene_holdout_recovery.png",
+        "subcelltype_dissection": [
+          "subcelltype_T_cell.png",
+          "subcelltype_Myeloid.png",
+          "subcelltype_Epithelial.png"
+        ],
+        "_meta": {
+          "subcelltype": {
+            "T_cell": {
+              "gated_cells": 1000,
+              "sub_clusters": 4,
+              "validation_panel_size": 6,
+              "top_K_DEGs": [
+                "IL7R",
+                "FOXP3",
+                "GNLY",
+                "PRF1",
+                "GZMB"
+              ],
+              "jaccard_with_gating": 0.0,
+              "circular_flag": false,
+              "figure": "subcelltype_T_cell.png"
+            },
+            "Myeloid": {
+              "gated_cells": 1000,
+              "sub_clusters": 8,
+              "validation_panel_size": 6,
+              "top_K_DEGs": [
+                "S100A8",
+                "MRC1",
+                "S100A9",
+                "CSF1R",
+                "APOE"
+              ],
+              "jaccard_with_gating": 0.0,
+              "circular_flag": false,
+              "figure": "subcelltype_Myeloid.png"
+            },
+            "Epithelial": {
+              "gated_cells": 1000,
+              "sub_clusters": 6,
+              "validation_panel_size": 7,
+              "top_K_DEGs": [
+                "ELF3",
+                "MUC1",
+                "FOXA1",
+                "GATA6",
+                "CLDN4"
+              ],
+              "jaccard_with_gating": 0.0,
+              "circular_flag": false,
+              "figure": "subcelltype_Epithelial.png"
+            }
+          }
+        }
       },
       "cancer_panel": [
         "CESC",
