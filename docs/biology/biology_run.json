@@ -1,0 +1,47 @@
+{
+  "synthetic": {
+    "wide": {
+      "source": "results/benchmark/enhanced/wide.h5ad",
+      "n_obs": 300,
+      "n_vars": 120,
+      "runtime_s": 3.8834416039990174,
+      "device": "cpu (precomputed)",
+      "figures": {
+        "latent_umap": "latent_umap.png",
+        "pergene_pearson_box": "pergene_pearson_box.png",
+        "gene_gene_corrheatmap": "gene_gene_corrheatmap.png",
+        "sparsity_histogram": "sparsity_histogram.png",
+        "marker_volcano": "marker_volcano.png"
+      }
+    }
+  },
+  "real": {
+    "CESC": {
+      "dataset_key": "CESC",
+      "source": "data/baselines/st_impute_ref/processed_data/st_CESC_test.h5ad",
+      "n_obs": 4000,
+      "n_vars": 10000,
+      "runtime_s": 26.728459504000057,
+      "device": "cuda",
+      "figures": {
+        "spatial_markers": [
+          "spatial_marker_DSC3.png",
+          "spatial_marker_HSPB1.png"
+        ],
+        "latent_umap": "latent_umap.png",
+        "pergene_pearson_box": "pergene_pearson_box.png",
+        "gene_gene_corrheatmap": "gene_gene_corrheatmap.png",
+        "sparsity_histogram": "sparsity_histogram.png",
+        "marker_volcano": "marker_volcano.png"
+      },
+      "cancer_panel": [
+        "CESC",
+        "COAD",
+        "LIHC",
+        "NSCLC",
+        "OV",
+        "PRAD"
+      ]
+    }
+  }
+}
