@@ -63,6 +63,7 @@ from scripts.visualize.fig_lineage_dotplot import render_lineage_dotplot
 from scripts.visualize.fig_gene_holdout_recovery import run_gene_holdout_recovery
 from scripts.visualize.fig_pcc_ssim_nhvg_sweep import render_pcc_ssim_nhvg_sweep
 from scripts.visualize.fig_spatial_marker_grid import render_spatial_marker_grid
+from scripts.visualize.fig_subcelltype_dissection import render_subcelltype_dissection
 
 from lumina_st.config.lumina_config import LuminaSTConfig
 from lumina_st.core.lumina_imputer import LuminaImputer
@@ -539,6 +540,23 @@ def write_report(
                     md.append("")
                     md.append(f"![{key}]({fig_rel(figs[key])})")
                     md.append("")
+            if "subcelltype_dissection" in figs:
+                md.append("**Sub-celltype dissection per lineage** (Jaccard self-check enforced)")
+                md.append("")
+                for fn in figs["subcelltype_dissection"]:
+                    md.append(f"![{fn}]({fig_rel(fn)})")
+                meta = figs.get("_meta", {}).get("subcelltype", {})
+                for lineage, info in meta.items():
+                    if "jaccard_with_gating" in info:
+                        flag = " ⚠ CIRCULAR" if info.get("circular_flag") else ""
+                        md.append(
+                            f"- `{lineage}`: gated={info.get('gated_cells')} cells, "
+                            f"sub-clusters={info.get('sub_clusters')}, "
+                            f"J(gating, top-K DEGs)={info['jaccard_with_gating']:.2f}{flag}"
+                        )
+                    elif info.get("skipped"):
+                        md.append(f"- `{lineage}`: skipped — {info.get('reason')}")
+                md.append("")
             if "leiden_to_label_sankey" in figs:
                 obj = figs["leiden_to_label_sankey"]
                 md.append("**Sankey of Leiden → in-data label**")
@@ -640,6 +658,12 @@ def run_real(out_root: Path, device: torch.device, max_cells: int, cancer: Optio
     holdout_info = run_gene_holdout_recovery(target_subsampled, _enhance_with_hold, holdout_p)
     if holdout_p.exists():
         figures["gene_holdout_recovery"] = holdout_p.name
+
+    # Wave 3 sub-celltype dissection (real mode only — needs the trained imputer)
+    subcell_info = render_subcelltype_dissection(enhanced, _enhance_with_hold, dataset_dir)
+    if subcell_info.get("figures"):
+        figures["subcelltype_dissection"] = subcell_info["figures"]
+    figures.setdefault("_meta", {})["subcelltype"] = subcell_info.get("per_lineage", {})
 
     # Cancer panel across all available slices (subsample heavily)
     panel_path = out_root / "real" / "cancer_panel.png"
