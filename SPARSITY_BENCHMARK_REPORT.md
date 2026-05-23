@@ -11,9 +11,9 @@ This report compares the performance and mathematical correctness of three spars
 
 | Version | Hardware | Execution Time (s) | Speedup Factor |
 | --- | --- | --- | --- |
-| Baseline (Original NumPy loops) | CPU | 0.3517s | 1.0x (Reference) |
-| Our Vectorized (PyTorch CPU) | CPU | 0.2408s | 1.5x |
-| Our Accelerated (PyTorch GPU) | GPU | 0.0190s | 18.5x |
+| Baseline (Original NumPy loops) | CPU | 0.6369s | 1.0x (Reference) |
+| Our Vectorized (PyTorch CPU) | CPU | 0.2572s | 2.5x |
+| Our Accelerated (PyTorch GPU) | GPU | 0.0197s | 32.3x |
 
 ## Mathematical Parity Check
 
