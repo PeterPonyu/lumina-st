@@ -168,6 +168,7 @@ class LuminaImputer:
         ode_style: str = "correct",
         uncond_class: str = "correct",
         sparsity_style: str = "gene",
+        held_out_genes: Optional[list] = None,
     ) -> ad.AnnData:
         """
         Full guided enhancement / imputation pipeline.
@@ -176,6 +177,12 @@ class LuminaImputer:
             - .layers['imputed']          : enhanced gene expression
             - .obsm['latent_enhanced']    : improved latent embedding
             - .obsm['latent_observed']    : original encoded latent (for comparison)
+
+        If ``held_out_genes`` is provided, those gene columns are zeroed in the
+        input expression matrix **before** the encoder sees them. This supports
+        held-out gene recovery benchmarks: pass a list of gene names, then
+        compare the imputed values at those columns against the original
+        observations to score how well the model recovers masked signal.
         """
         import numpy as np
         import scanpy as sc
@@ -209,6 +216,15 @@ class LuminaImputer:
 
         if hasattr(expr, "toarray"):
             expr = expr.toarray()
+
+        # Zero out held-out gene columns at the raw-input layer (before
+        # normalization or encoding) so the encoder sees them as absent.
+        if held_out_genes:
+            expr = np.asarray(expr, dtype=np.float32).copy()
+            var_names = list(adata.var_names)
+            mask_idx = [var_names.index(g) for g in held_out_genes if g in var_names]
+            if mask_idx:
+                expr[:, mask_idx] = 0.0
 
         x = torch.from_numpy(expr).float()
         

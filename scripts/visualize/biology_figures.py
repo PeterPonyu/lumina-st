@@ -60,6 +60,9 @@ from scripts.visualize._plot_utils import (
 from scripts.visualize.fig_sankey_leiden_to_annotation import render_sankey
 from scripts.visualize.fig_comparative_umaps import render_comparative_umaps
 from scripts.visualize.fig_lineage_dotplot import render_lineage_dotplot
+from scripts.visualize.fig_gene_holdout_recovery import run_gene_holdout_recovery
+from scripts.visualize.fig_pcc_ssim_nhvg_sweep import render_pcc_ssim_nhvg_sweep
+from scripts.visualize.fig_spatial_marker_grid import render_spatial_marker_grid
 
 from lumina_st.config.lumina_config import LuminaSTConfig
 from lumina_st.core.lumina_imputer import LuminaImputer
@@ -114,7 +117,7 @@ def list_real_slices() -> List[Path]:
     return []
 
 
-def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, seed: int = 42) -> AnnData:
+def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, seed: int = 42, return_imputer: bool = False):
     """Train a small LuminaST and enhance a real baseline slice.
 
     Uses TinyVAE (no SCVI dependency). Keeps the run under ~2 minutes per slice
@@ -181,6 +184,8 @@ def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, s
 
     imputer = LuminaImputer(cfg, module)
     enhanced = imputer.enhance(target, cancer_type=cancer_name)
+    if return_imputer:
+        return enhanced, imputer, target, cancer_name
     return enhanced
 
 
@@ -463,6 +468,17 @@ def render_figures_for_adata(adata: AnnData, out_dir: Path) -> Dict[str, Any]:
     if p.exists():
         figures["lineage_dotplot"] = p.name
 
+    # === Wave 2 — post-hoc figures on already-enhanced adata ===
+    p = out_dir / "pcc_ssim_nhvg_sweep.png"
+    render_pcc_ssim_nhvg_sweep(adata, p)
+    if p.exists():
+        figures["pcc_ssim_nhvg_sweep"] = p.name
+
+    p = out_dir / "spatial_marker_grid.png"
+    render_spatial_marker_grid(adata, p)
+    if p.exists():
+        figures["spatial_marker_grid"] = p.name
+
     return figures
 
 
@@ -514,6 +530,9 @@ def write_report(
                 ("marker_volcano",       "**Marker discovery on imputed expression** (Wilcoxon per Leiden cluster)"),
                 ("comparative_umaps",    "**Comparative UMAPs** (raw PCA / `latent_observed` / `latent_enhanced`)"),
                 ("lineage_dotplot",      "**Canonical-lineage-marker dot plot** on imputed expression per Leiden cluster"),
+                ("pcc_ssim_nhvg_sweep",  "**PCC / SSIM / RMSE / JS line plots** vs n_HVG (post-hoc subset, no retraining)"),
+                ("spatial_marker_grid",  "**Per-patch raw vs imputed marker grid** (top-variance genes, quadrant split)"),
+                ("gene_holdout_recovery","**Held-out HVG recovery** — single-modality imputation benchmark (NOT a proteomics surrogate)"),
             ]:
                 if key in figs:
                     md.append(label)
@@ -603,13 +622,24 @@ def run_real(out_root: Path, device: torch.device, max_cells: int, cancer: Optio
     primary_name = primary.stem.replace("st_", "").replace("_test", "")
 
     t0 = time.perf_counter()
-    enhanced = enhance_real_slice(primary, max_cells=max_cells, device=device)
+    enhanced, imputer, target_subsampled, cancer_name = enhance_real_slice(
+        primary, max_cells=max_cells, device=device, return_imputer=True
+    )
     enhanced_dir = PROJECT_ROOT / "results" / "biology" / "real" / primary_name
     enhanced_dir.mkdir(parents=True, exist_ok=True)
     enhanced.write(enhanced_dir / "enhanced.h5ad")
 
     dataset_dir = out_root / "real" / primary_name / "figures"
     figures = render_figures_for_adata(enhanced, dataset_dir)
+
+    # Wave 2 gene-holdout recovery (real mode only — needs the trained imputer)
+    def _enhance_with_hold(target_ad, hold_genes):
+        return imputer.enhance(target_ad, cancer_type=cancer_name, held_out_genes=hold_genes)
+
+    holdout_p = dataset_dir / "gene_holdout_recovery.png"
+    holdout_info = run_gene_holdout_recovery(target_subsampled, _enhance_with_hold, holdout_p)
+    if holdout_p.exists():
+        figures["gene_holdout_recovery"] = holdout_p.name
 
     # Cancer panel across all available slices (subsample heavily)
     panel_path = out_root / "real" / "cancer_panel.png"
