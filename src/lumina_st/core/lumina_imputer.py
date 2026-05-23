@@ -13,9 +13,11 @@ from typing import Optional, Union
 import anndata as ad
 import pytorch_lightning as pl
 import torch
+from torch.utils.data import DataLoader
 
 from ..config.lumina_config import LuminaSTConfig
 from ..data.cancer_registry import CancerRegistry
+from ..data.datasets import ReferenceAtlasDataset
 from ..models.lumina_transformer import LuminaTransformer
 from ..modules.lumina_flow_module import LuminaFlowModule
 
@@ -307,7 +309,41 @@ class LuminaImputer:
         return adata
 
 
-    def fit(self, trainer: Optional[pl.Trainer] = None, **trainer_kwargs):
-        """Train the flow model on the reference atlas."""
-        # Will be wired in Phase 2
-        pass
+    def fit(
+        self,
+        trainer: Optional[pl.Trainer] = None,
+        *,
+        reference_adata: Optional[ad.AnnData] = None,
+        train_loader: Optional[DataLoader] = None,
+        **trainer_kwargs,
+    ) -> pl.Trainer:
+        """Train the flow model on a reference atlas."""
+        if train_loader is None:
+            if reference_adata is None:
+                raise ValueError("Provide reference_adata or train_loader to train LuminaST")
+
+            if self.config.cancer_registry_file and Path(self.config.cancer_registry_file).exists():
+                registry = CancerRegistry.from_file(self.config.cancer_registry_file)
+            elif self.config.cancer_types:
+                registry = CancerRegistry({c: i for i, c in enumerate(self.config.cancer_types)})
+            else:
+                registry = CancerRegistry.default_pan_cancer()
+
+            dataset = ReferenceAtlasDataset(reference_adata, self.config, registry)
+            train_loader = DataLoader(
+                dataset,
+                batch_size=self.config.batch_size,
+                shuffle=True,
+                num_workers=self.config.num_workers,
+            )
+
+        if trainer is None:
+            trainer = pl.Trainer(
+                max_epochs=self.config.max_epochs,
+                gradient_clip_val=self.config.gradient_clip_val,
+                default_root_dir=str(self.config.output_dir),
+                **trainer_kwargs,
+            )
+
+        trainer.fit(self.module, train_dataloaders=train_loader)
+        return trainer
