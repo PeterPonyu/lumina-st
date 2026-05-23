@@ -78,15 +78,22 @@ def main(args):
         ref = sc.read_h5ad(args.reference)
         target = sc.read_h5ad(args.target)
         print("Using user-provided real data files.")
-    elif DATA_ROOT.exists() and (DATA_ROOT / "processed").exists():
+    elif DATA_ROOT.exists() and any((DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")):
+        # Accept both folder names — the gdown download yields processed_data/,
+        # while the upstream stPainter README documents processed/.
+        processed = DATA_ROOT / "processed" if (DATA_ROOT / "processed").exists() else DATA_ROOT / "processed_data"
         print(f"\n[INFO] Found real baseline stPainter data at: {DATA_ROOT}")
-        print("       Using real processed data from the original stPainter repository for E2E run.\n")
-        processed = DATA_ROOT / "processed"
-        ref = sc.read_h5ad(processed / "sc_train.h5ad")
+        print(f"       Using {processed.name}/ for E2E run.\n")
+        ref_path = processed / "sc_train.h5ad"
+        if not ref_path.exists():
+            raise FileNotFoundError(
+                f"Reference atlas {ref_path} missing — re-run scripts/download_baselines.py --lumina."
+            )
+        ref = sc.read_h5ad(ref_path)
         # Pick the first available cancer test file as target
         possible_targets = list(processed.glob("st_*_test.h5ad"))
         if not possible_targets:
-            raise FileNotFoundError("No st_*_test.h5ad found in baseline processed folder")
+            raise FileNotFoundError(f"No st_*_test.h5ad found in {processed}")
         target_path = possible_targets[0]
         target = sc.read_h5ad(target_path)
         if args.cancer is None:
@@ -137,7 +144,9 @@ def main(args):
             scvi_model = SCVI(ref, n_latent=cfg.latent_dim)
             scvi_model.train(max_epochs=min(30, args.max_epochs))
             Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-            scvi_model.save(str(Path(args.output).parent / "scvi_ref"))
+            scvi_save_dir = Path(args.output).parent / "scvi_ref"
+            # scvi save() refuses to overwrite by default; allow re-runs to succeed.
+            scvi_model.save(str(scvi_save_dir), overwrite=True)
         else:
             print("[WARNING] scvi-tools not found in current env. Using TinyVAE for fast synthetic demo.")
             print("          For real results, run with: conda run -n dl python ...")
