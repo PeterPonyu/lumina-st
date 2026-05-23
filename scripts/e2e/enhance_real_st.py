@@ -38,13 +38,12 @@ from lumina_st.metrics.enhancement_evaluator import EnhancementEvaluator
 
 try:
     from scvi.model import SCVI
-    HAS_SCVI = True
 except ImportError:
-    HAS_SCVI = False
+    SCVI = None
 
 
 def main(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
     # === Smart data source selection ===
@@ -89,7 +88,12 @@ def main(args):
     print(f"Target ST : {target.n_obs} cells, {target.n_vars} genes")
 
     # Create a minimal registry from the data
-    cancers = sorted(ref.obs.get("cancer_type", ref.obs.get("Tumor Type", ["UNKNOWN"])).unique().tolist())
+    if "cancer_type" in ref.obs:
+        cancers = sorted(ref.obs["cancer_type"].astype(str).unique().tolist())
+    elif "Tumor Type" in ref.obs:
+        cancers = sorted(ref.obs["Tumor Type"].astype(str).unique().tolist())
+    else:
+        cancers = ["UNKNOWN"]
     registry = CancerRegistry({c: i for i, c in enumerate(cancers)})
 
     cfg = LuminaSTConfig(
@@ -105,10 +109,12 @@ def main(args):
 
     # 1. Train scVI VAE on reference (if not provided)
     if args.scvi_model and Path(args.scvi_model).exists():
+        if SCVI is None:
+            raise ImportError("scvi-tools is required to load an existing SCVI model")
         print("Loading existing SCVI model...")
         scvi_model = SCVI.load(args.scvi_model)
     else:
-        if HAS_SCVI:
+        if SCVI is not None:
             print("Training quick SCVI VAE on reference atlas...")
             SCVI.setup_anndata(ref, batch_key="cancer_type" if "cancer_type" in ref.obs else None)
             scvi_model = SCVI(ref, n_latent=cfg.latent_dim)
@@ -141,12 +147,13 @@ def main(args):
     # Wrap real SCVI
     vae_wrapper = SCVILatentEncoder(scvi_model)
 
-    module = LuminaFlowModule(cfg, transformer, vae=vae_wrapper)
+    module = LuminaFlowModule(cfg, transformer, vae=vae_wrapper).to(device)
 
     # Quick training of the flow model
     opt = torch.optim.AdamW(module.parameters(), lr=cfg.lr)
     print("Training Lumina flow model on latent space...")
     for epoch in range(cfg.max_epochs):
+        last_loss = None
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
@@ -158,8 +165,9 @@ def main(args):
             opt.zero_grad()
             loss.backward()
             opt.step()
-        if epoch % 5 == 0:
-            print(f"  Epoch {epoch+1}/{cfg.max_epochs} - loss {loss.item():.4f}")
+            last_loss = loss
+        if epoch % 5 == 0 and last_loss is not None:
+            print(f"  Epoch {epoch+1}/{cfg.max_epochs} - loss {last_loss.item():.4f}")
 
     # 4. Enhance target
     print("Enhancing target ST slice...")
