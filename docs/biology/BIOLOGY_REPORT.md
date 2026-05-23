@@ -13,7 +13,7 @@ This report exercises those outputs on two data sources: a synthetic reference +
 ### wide
 
 - source: `results/benchmark/enhanced/wide.h5ad`
-- cells: 300, genes: 120, runtime: 10.9s, device: `cpu (precomputed)`
+- cells: 300, genes: 120, runtime: 10.3s, device: `cpu (precomputed)`
 
 **Enhanced-latent UMAP** (colored by Leiden + true label when available)
 
@@ -58,7 +58,7 @@ This report exercises those outputs on two data sources: a synthetic reference +
 ### CESC
 
 - source: `data/baselines/stpainter/processed_data/st_CESC_test.h5ad`
-- cells: 4,000, genes: 10,000, runtime: 53.0s, device: `cuda`
+- cells: 4,000, genes: 10,000, runtime: 52.6s, device: `cuda`
 
 **Spatial expression — raw vs LuminaST-imputed (top-variance genes)**
 
@@ -104,6 +104,15 @@ This report exercises those outputs on two data sources: a synthetic reference +
 **Held-out HVG recovery** — single-modality imputation benchmark (NOT a proteomics surrogate)
 
 ![gene_holdout_recovery](./real/CESC/figures/gene_holdout_recovery.png)
+
+**Sub-celltype dissection per lineage** (Jaccard self-check enforced)
+
+![subcelltype_T_cell.png](./real/CESC/figures/subcelltype_T_cell.png)
+![subcelltype_Myeloid.png](./real/CESC/figures/subcelltype_Myeloid.png)
+![subcelltype_Epithelial.png](./real/CESC/figures/subcelltype_Epithelial.png)
+- `T_cell`: gated=1000 cells, sub-clusters=4, J(gating, top-K DEGs)=0.00
+- `Myeloid`: gated=1000 cells, sub-clusters=8, J(gating, top-K DEGs)=0.00
+- `Epithelial`: gated=1000 cells, sub-clusters=6, J(gating, top-K DEGs)=0.00
 
 **Sankey of Leiden → in-data label**
 
