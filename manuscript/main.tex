@@ -1,0 +1,227 @@
+\documentclass[10pt,letterpaper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[hyphens]{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{authblk}
+\usepackage{lineno}
+\usepackage{titlesec}
+\usepackage{enumitem}
+
+% bioRxiv-style modest section sizes
+\titleformat{\section}{\bfseries\normalsize}{\thesection}{0.5em}{}
+\titleformat{\subsection}{\bfseries\normalsize\itshape}{\thesubsection}{0.5em}{}
+
+\title{LuminaST: Schema-aware Spatial Transcriptomics Enhancement with Calibrated Uncertainty}
+
+\author[1]{Anonymous Authors}
+\affil[1]{Author affiliations to be added before submission}
+
+\date{\today}
+
+% --- Status banner; remove before final submission ----------------------------
+\newcommand{\statusbanner}{%
+  \begin{center}\colorbox{yellow!30}{\parbox{0.9\textwidth}{%
+  \textbf{DRAFT --- SYNTHETIC PLACEHOLDER DATA.} Every numerical result and
+  figure in this manuscript is generated from the synthetic benchmark JSONs
+  under \texttt{lumina-st/results/benchmark/}. No claim has graduated to
+  \emph{paper-ready} status in \texttt{docs/CLAIM\_LEDGER.md}. Real-data
+  promotion is gated by the acceptance matrix.
+  }}\end{center}}
+% ------------------------------------------------------------------------------
+
+\begin{document}
+\maketitle
+\linenumbers
+\statusbanner
+
+\begin{abstract}
+Single-cell-resolution spatial transcriptomics is constrained by the gene
+panel and per-transcript detection rate of the imaging platform. We
+introduce \textbf{LuminaST}, a schema-aware enhancement framework that
+combines a latent flow-matching imputer with a first-party split-conformal
+uncertainty wrapper. Across a synthetic benchmark of six adapter contracts
+(mean, kNN, LuminaST, and four external competitors evaluated via shared
+input/output schemas) the framework produces calibrated 90~\% prediction
+intervals whose empirical coverage tracks the nominal target within the
+test-asserted band. Robustness is characterized over a five-step
+detection-rate sweep with physically-correct per-transcript Binomial
+thinning, and pan-context generalization is tested under leave-one-context
+cross-validation with bootstrap confidence intervals. The package, the
+benchmark contract, and the audit-boundary discipline are open. \emph{All
+results in this draft are computed from synthetic placeholder data;
+real-data promotion is gated by the project claim ledger.}
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Spatial transcriptomics (ST) preserves gene-expression context within native
+tissue architecture. Image-based single-cell-resolution platforms (e.g.\
+Xenium, CosMx, MERSCOPE) capture only $\sim$300--5{,}000 genes per slide;
+imputation methods predict the unmeasured genes from spatial context plus
+an external reference. Prior art covers alignment-based, generative, and
+diffusion-based approaches; we cite these as motivation rather than
+copying their methodology. LuminaST contributes three independent levers:
+(i)~a uniform adapter contract that makes head-to-head comparison
+audit-safe; (ii)~first-party split-conformal prediction intervals around any
+imputer; (iii)~a per-transcript Binomial detection-rate sweep that matches
+the physical noise model of imaging-based ST.
+
+Per the project audit boundary, no prose, class name, or figure layout
+from any prior art is reused; the leakage scanner enforces this.
+
+\section{Method}
+\label{sec:method}
+
+LuminaST exposes a single API: a configurable \texttt{LuminaImputer}
+that, given a schema-valid AnnData (with the configurable
+\texttt{vae\_batch\_key} column in \texttt{.obs}, gene names in
+\texttt{.var\_names}, and a counts or normalized matrix in \texttt{.X}),
+returns an AnnData with \texttt{layers["imputed"]} populated. The
+benchmark contract (Section~\ref{sec:bench-contract}) extends this with
+audit-safe held-out gene masking and per-result provenance capture; the
+conformal wrapper (Section~\ref{sec:conformal}) adds calibrated prediction
+intervals.
+
+\subsection{Benchmark adapter contract}
+\label{sec:bench-contract}
+
+Each method we compare implements a uniform \texttt{BaseAdapter}
+subclassing pattern. Held-out genes are masked to zero in the observed
+matrix \emph{before} any adapter sees the input; the truth matrix is
+retained separately and visible only to the scoring code. Per-result
+provenance records command, seed, hardware, dependency versions, and the
+git SHA of the running checkout. Five test files in
+\texttt{lumina-st/tests/benchmarks/} independently verify that held-out
+values never reach any adapter under any sweep configuration.
+
+\subsection{Conformal calibration}
+\label{sec:conformal}
+
+For miscoverage level $\alpha$, we partition the input cells into a
+calibration set and a test set. On the calibration cells the base imputer
+produces a point estimate; per-gene residuals
+$r_j = |x_j^{\text{truth}} - x_j^{\text{imputed}}|$ define the split-conformal
+quantile half-width
+$\hat{q}_j = \mathrm{Quantile}\!\left[r_j, (1-\alpha)(1+1/n_{\text{cal}})\right].$
+For each test cell the prediction interval is
+$[\hat{x}_j - \hat{q}_j,\ \hat{x}_j + \hat{q}_j].$
+The empirical coverage on the test cells is reported alongside the point
+metric.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Held-out gene panel recovery (synthetic placeholder)}
+\label{sec:res-heldout}
+
+We score each adapter on the held-out marker panel
+$\{\textit{CD4}, \textit{CD8A}, \textit{CD68}, \textit{EPCAM},
+\textit{ENG}, \textit{POSTN}\}$ defined statically before any imputation
+runs (panel registered in \texttt{lumina\_st.benchmarks.panels.TME\_IMMUNE\_STROMAL}).
+Figure~\ref{fig:heldout} reports per-gene Pearson, Spearman, RMSE on
+z-normalized values, and per-cell zero-pattern Jaccard for the always-available
+adapters; the four external adapters (SpaIM, TISSUE, stMCDI, CellT)
+correctly report \texttt{unavailable} status until their upstream packages
+are installed. \emph{Numbers in this figure are synthetic placeholders;
+real-data figures will replace them once the corresponding data card
+graduates from \texttt{pending\_*}.}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_heldout_panel.pdf}
+  \caption{Held-out marker-panel recovery on synthetic placeholder data.
+  Six adapters evaluated under the shared \texttt{BaseAdapter} contract;
+  four external competitors record \texttt{unavailable} until installed.
+  Source: \texttt{lumina-st/results/benchmark/synthetic\_smoke.json}.}
+  \label{fig:heldout}
+\end{figure}
+
+\subsection{Sparsity / detection-rate robustness}
+\label{sec:res-sparsity}
+
+The per-transcript Bernoulli thinning model produces a five-step sparsity
+sweep at fractions $\{1.0, 0.5, 0.25, 0.1, 0.05\}$.
+Figure~\ref{fig:sparsity}a confirms the observed sparsity rises
+monotonically from $0.107$ to $0.836$ as the detection-rate fraction drops;
+Figure~\ref{fig:sparsity}b shows per-method recovery degradation.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_sparsity_sweep.pdf}
+  \caption{Sparsity / detection-rate sweep. (a) Observed sparsity vs
+  Bernoulli detection-rate fraction. (b) Per-adapter mean Pearson at each
+  fraction. Source: \texttt{lumina-st/results/benchmark/sparsity\_sweep.json}.}
+  \label{fig:sparsity}
+\end{figure}
+
+\subsection{Calibrated prediction intervals}
+\label{sec:res-conformal}
+
+For target miscoverage levels $\alpha \in \{0.05, 0.10, 0.20\}$
+applied to the \texttt{mean} and \texttt{knn} base adapters wrapped by
+\texttt{ConformalCalibrator}, empirical coverage on held-out cells tracks
+the nominal target within the regression band asserted by
+\texttt{test\_noisy\_adapter\_achieves\_near\_nominal\_coverage}
+($\pm 0.07$). Figure~\ref{fig:conformal} shows the per-(adapter,$\alpha$)
+empirical-vs-nominal coverage and mean interval width.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_conformal_calibration.pdf}
+  \caption{Conformal prediction-interval calibration. (a) Empirical vs
+  nominal coverage. (b) Mean interval width vs $\alpha$. Black diagonal in
+  (a) is the perfect-calibration line. Source: deterministic re-run of
+  \texttt{lumina\_st.benchmarks.uncertainty.ConformalCalibrator}.}
+  \label{fig:conformal}
+\end{figure}
+
+\subsection{Leave-one-context cross-validation}
+\label{sec:res-cv}
+
+Pan-context behavior is assessed by leave-one-context CV: for each held-out
+context the adapter is constructed via a factory that receives only the
+other contexts. We report per-fold mean Pearson and bootstrap 95\%
+confidence intervals over $K$ folds.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_leave_one_context.pdf}
+  \caption{Leave-one-context CV across four synthetic cancer contexts.
+  Bars are per-fold mean Pearson; whiskers are bootstrap 95\% CI over
+  folds. Source: \texttt{lumina-st/results/benchmark/leave\_one\_context.json}.}
+  \label{fig:loo}
+\end{figure}
+
+\section{Discussion}
+\label{sec:discussion}
+
+LuminaST in its present synthetic-evaluation form is not a claim of
+biological superiority over any prior method. The audit boundary requires
+that every promotion of a claim from \texttt{validated-small} or
+\texttt{blocked} to \texttt{paper-ready} be backed by real-data evidence
+linked from \texttt{docs/CLAIM\_LEDGER.md}. The deliverables present today
+are: (i)~a uniform benchmark contract that catches audit regressions
+mechanically; (ii)~first-party split-conformal calibration that produces
+prediction intervals at user-specified $\alpha$; (iii)~a per-transcript
+Binomial thinning sweep that matches the physical noise model.
+
+\section*{Data and code availability}
+
+Source code, tests, and the benchmark contract live in the LuminaST
+package. Synthetic placeholder data is produced deterministically by
+\texttt{scripts/data/prepare\_synthetic\_lumina.py}; the data card schema
+and reproducibility metadata helper are documented in the package.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
