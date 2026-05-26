@@ -42,7 +42,6 @@ dependencies = [
   "tqdm",
   "einops",
   "torchdiffeq",
-  "timm>=1.0",
 ]
 
 [project.optional-dependencies]

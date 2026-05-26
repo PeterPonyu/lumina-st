@@ -9,6 +9,7 @@ NO retraining: this is a post-hoc subset of a single enhanced AnnData.
 Outputs:
   <out_dir>/pcc_ssim_nhvg_sweep.png  (2x2 grid)
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,12 +37,15 @@ def _ssim_per_gene(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     C1 = 1e-4
     C2 = 1e-4
     for i in range(n_g):
-        x = a[:, i]; y = b[:, i]
-        mux = float(x.mean()); muy = float(y.mean())
-        vx = float(x.var()); vy = float(y.var())
+        x = a[:, i]
+        y = b[:, i]
+        mux = float(x.mean())
+        muy = float(y.mean())
+        vx = float(x.var())
+        vy = float(y.var())
         cxy = float(((x - mux) * (y - muy)).mean())
         num = (2 * mux * muy + C1) * (2 * cxy + C2)
-        den = (mux ** 2 + muy ** 2 + C1) * (vx + vy + C2)
+        den = (mux**2 + muy**2 + C1) * (vx + vy + C2)
         if den > 0:
             out[i] = num / den
     return out
@@ -83,15 +87,24 @@ def render_pcc_ssim_nhvg_sweep(
         if n > len(hvg_order):
             break
         idx = hvg_order[:n]
-        r = raw[:, idx]; m = imp[:, idx]
-        pcc_per = np.array([
-            pearsonr(r[:, i], m[:, i])[0] if r[:, i].std() > 1e-8 and m[:, i].std() > 1e-8 else np.nan
-            for i in range(n)
-        ])
-        spr_per = np.array([
-            spearmanr(r[:, i], m[:, i])[0] if r[:, i].std() > 1e-8 and m[:, i].std() > 1e-8 else np.nan
-            for i in range(n)
-        ])
+        r = raw[:, idx]
+        m = imp[:, idx]
+        pcc_per = np.array(
+            [
+                pearsonr(r[:, i], m[:, i])[0]
+                if r[:, i].std() > 1e-8 and m[:, i].std() > 1e-8
+                else np.nan
+                for i in range(n)
+            ]
+        )
+        spr_per = np.array(
+            [
+                spearmanr(r[:, i], m[:, i])[0]
+                if r[:, i].std() > 1e-8 and m[:, i].std() > 1e-8
+                else np.nan
+                for i in range(n)
+            ]
+        )
         ssim_per = _ssim_per_gene(r, m)
         rmse_per = np.sqrt(((r - m) ** 2).mean(axis=0))
         js_per = _js_per_gene(r, m)
@@ -122,3 +135,11 @@ def render_pcc_ssim_nhvg_sweep(
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Thin wrapper — matches the canonical render_pcc_ssim_sweep entry point
+# ---------------------------------------------------------------------------
+def render_pcc_ssim_sweep(adata: AnnData, out_path: Path) -> None:
+    """Post-hoc HVG sweep on a single enhancement — no per-n_HVG retraining."""
+    render_pcc_ssim_nhvg_sweep(adata, out_path)

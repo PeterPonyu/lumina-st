@@ -27,3 +27,6 @@ wheels/
 # Results and logs
 results/
 *.log
+
+# Local OMX/runtime state
+.omc/
