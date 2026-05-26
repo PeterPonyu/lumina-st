@@ -44,7 +44,15 @@ def _load_or_warn(path: Path) -> dict | None:
     return json.loads(path.read_text())
 
 
-def _annotate_placeholder(ax: plt.Axes) -> None:
+def _is_synthetic(payload: dict | None) -> bool:
+    """Heuristic: payload provenance indicates synthetic source."""
+    if payload is None:
+        return True
+    txt = json.dumps(payload)[:4096]
+    return "synthetic" in txt.lower()
+
+
+def _annotate_placeholder(ax) -> None:
     """Stamp a small banner so reviewers can never confuse synthetic with real."""
     ax.text(
         0.99, 0.01, PLACEHOLDER_BANNER,
@@ -54,10 +62,41 @@ def _annotate_placeholder(ax: plt.Axes) -> None:
     )
 
 
+def _bold_panel_label(ax, letter: str) -> None:
+    """Bold lowercase panel label at the top-left of each panel.
+
+    Mirrors the field-conventional style documented in
+    `docs/REFERENCE_FIGURE_STYLE.md`. Letter is rendered outside the data
+    axes so it doesn't collide with subplot content.
+    """
+    ax.text(
+        -0.10, 1.05, letter,
+        transform=ax.transAxes,
+        ha="left", va="bottom",
+        fontsize=12, fontweight="bold",
+    )
+
+
+def _stamp_provenance(fig, source_path: Path, data_card_id: str | None) -> None:
+    """Foot-of-figure provenance stamp so reviewers know which JSON + data card backed the figure."""
+    try:
+        rel = source_path.relative_to(PROJECT_ROOT)
+    except ValueError:
+        rel = source_path
+    card = f"  ·  data_card_id={data_card_id}" if data_card_id else ""
+    fig.text(
+        0.99, 0.005,
+        f"source: {rel}{card}",
+        ha="right", va="bottom",
+        fontsize=5.5, style="italic", color="dimgrey",
+        family="monospace",
+    )
+
+
 # -- Figure 1: held-out panel (Pearson / Spearman / RMSE per adapter) -------
 
 
-def compose_heldout(synthetic_smoke: dict, out_path: Path) -> None:
+def compose_heldout(synthetic_smoke: dict, out_path: Path, source_path: Path, data_card_id: str | None = None) -> None:
     panels = synthetic_smoke["panels"]
     key = next(iter(panels))
     methods = panels[key]
@@ -89,13 +128,15 @@ def compose_heldout(synthetic_smoke: dict, out_path: Path) -> None:
             for b, v in zip(bars, [v for _, v in finite]):
                 ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
                         f"{v:.3f}", ha="center", va="bottom", fontsize=8)
-        ax.set_title(f"({chr(ord('a') + mi)}) {mlabel}")
+        _bold_panel_label(ax, chr(ord('a') + mi))
+        ax.set_title(mlabel, fontsize=10)
         ax.grid(axis="y", linestyle=":", alpha=0.5)
         _annotate_placeholder(ax)
 
     fig.suptitle("Held-out marker-panel recovery (TME-immune-stromal panel)",
                  fontsize=11, y=1.02)
     fig.tight_layout()
+    _stamp_provenance(fig, source_path, data_card_id)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"[compose] {out_path.relative_to(PROJECT_ROOT)}")
@@ -104,7 +145,7 @@ def compose_heldout(synthetic_smoke: dict, out_path: Path) -> None:
 # -- Figure 2: sparsity sweep ---------------------------------------------
 
 
-def compose_sparsity(sparsity_sweep: dict, out_path: Path) -> None:
+def compose_sparsity(sparsity_sweep: dict, out_path: Path, source_path: Path, data_card_id: str | None = None) -> None:
     rows = sparsity_sweep["rows"]
     # Aggregate by (method, fraction)
     fractions = sorted({r["fraction"] for r in rows})
@@ -123,7 +164,8 @@ def compose_sparsity(sparsity_sweep: dict, out_path: Path) -> None:
     ax_a.plot(fs, ys, marker="o", color="darkorange")
     ax_a.set_xlabel("detection-rate fraction")
     ax_a.set_ylabel("observed sparsity (fraction of zeros)")
-    ax_a.set_title("(a) Observed sparsity grows monotonically as fraction drops")
+    _bold_panel_label(ax_a, "a")
+    ax_a.set_title("Observed sparsity grows monotonically as fraction drops", fontsize=10)
     ax_a.invert_xaxis()
     ax_a.grid(linestyle=":", alpha=0.5)
     _annotate_placeholder(ax_a)
@@ -149,7 +191,8 @@ def compose_sparsity(sparsity_sweep: dict, out_path: Path) -> None:
         )
     ax_b.set_xlabel("detection-rate fraction")
     ax_b.set_ylabel("mean Pearson on held-out panel")
-    ax_b.set_title("(b) Per-method recovery vs detection rate")
+    _bold_panel_label(ax_b, "b")
+    ax_b.set_title("Per-method recovery vs detection rate", fontsize=10)
     ax_b.invert_xaxis()
     ax_b.grid(linestyle=":", alpha=0.5)
     ax_b.legend(loc="best", fontsize=8, framealpha=0.9)
@@ -157,6 +200,7 @@ def compose_sparsity(sparsity_sweep: dict, out_path: Path) -> None:
 
     fig.suptitle("Sparsity / detection-rate sweep", fontsize=11, y=1.02)
     fig.tight_layout()
+    _stamp_provenance(fig, source_path, data_card_id)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"[compose] {out_path.relative_to(PROJECT_ROOT)}")
@@ -165,7 +209,7 @@ def compose_sparsity(sparsity_sweep: dict, out_path: Path) -> None:
 # -- Figure 3: conformal calibration ---------------------------------------
 
 
-def compose_conformal(out_path: Path) -> None:
+def compose_conformal(out_path: Path, data_card_id: str | None = None) -> None:
     """Compose the conformal-calibration figure from a fresh deterministic run.
 
     Avoids requiring a pre-stored JSON — the calibrator is fast enough to
@@ -219,7 +263,8 @@ def compose_conformal(out_path: Path) -> None:
     ax_a.set_ylim(0.7, 1.0)
     ax_a.set_xlabel("nominal coverage  (1 − α)")
     ax_a.set_ylabel("empirical coverage on held-out cells")
-    ax_a.set_title("(a) Empirical vs nominal coverage")
+    _bold_panel_label(ax_a, "a")
+    ax_a.set_title("Empirical vs nominal coverage", fontsize=10)
     ax_a.legend(fontsize=8, loc="lower right")
     ax_a.grid(linestyle=":", alpha=0.5)
     _annotate_placeholder(ax_a)
@@ -238,7 +283,8 @@ def compose_conformal(out_path: Path) -> None:
         )
     ax_b.set_xlabel("miscoverage level α")
     ax_b.set_ylabel("mean interval width")
-    ax_b.set_title("(b) Interval width vs α")
+    _bold_panel_label(ax_b, "b")
+    ax_b.set_title("Interval width vs α", fontsize=10)
     ax_b.legend(fontsize=8, loc="best")
     ax_b.grid(linestyle=":", alpha=0.5)
     _annotate_placeholder(ax_b)
@@ -246,6 +292,9 @@ def compose_conformal(out_path: Path) -> None:
     fig.suptitle("Conformal prediction-interval calibration",
                  fontsize=11, y=1.02)
     fig.tight_layout()
+    # The conformal figure re-runs the calibrator inline; the "source" is the
+    # ConformalCalibrator class itself, not a benchmark JSON.
+    _stamp_provenance(fig, Path("lumina_st.benchmarks.uncertainty.ConformalCalibrator"), data_card_id)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"[compose] {out_path.relative_to(PROJECT_ROOT)}")
@@ -254,7 +303,7 @@ def compose_conformal(out_path: Path) -> None:
 # -- Figure 4: leave-one-context CV ----------------------------------------
 
 
-def compose_loo(loo: dict, out_path: Path) -> None:
+def compose_loo(loo: dict, out_path: Path, source_path: Path, data_card_id: str | None = None) -> None:
     per_adapter = loo["per_adapter"]
     methods = sorted(per_adapter.keys())
 
@@ -285,7 +334,8 @@ def compose_loo(loo: dict, out_path: Path) -> None:
         ax.set_xticks(xs)
         ax.set_xticklabels(contexts, rotation=20, ha="right", fontsize=8)
         ax.set_ylabel("mean Pearson (held-out panel)")
-        ax.set_title(f"({chr(ord('a') + mi)}) {m}")
+        _bold_panel_label(ax, chr(ord('a') + mi))
+        ax.set_title(m, fontsize=10)
         ax.legend(fontsize=8, loc="best")
         ax.grid(axis="y", linestyle=":", alpha=0.5)
         _annotate_placeholder(ax)
@@ -293,28 +343,55 @@ def compose_loo(loo: dict, out_path: Path) -> None:
     fig.suptitle("Leave-one-context cross-validation across cancer contexts",
                  fontsize=11, y=1.02)
     fig.tight_layout()
+    _stamp_provenance(fig, source_path, data_card_id)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"[compose] {out_path.relative_to(PROJECT_ROOT)}")
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--heldout-json", type=Path,
+        default=BENCH_DIR / "synthetic_smoke.json",
+        help="Benchmark JSON for the held-out panel figure.",
+    )
+    parser.add_argument(
+        "--sparsity-json", type=Path,
+        default=BENCH_DIR / "sparsity_sweep.json",
+        help="Benchmark JSON for the sparsity sweep figure.",
+    )
+    parser.add_argument(
+        "--loo-json", type=Path,
+        default=BENCH_DIR / "leave_one_context.json",
+        help="Benchmark JSON for the leave-one-context figure.",
+    )
+    parser.add_argument(
+        "--data-card-id", type=str, default=None,
+        help="Optional data card id stamped on every figure's provenance footer.",
+    )
+    args = parser.parse_args()
+
     print(f"[compose] benchmark dir: {BENCH_DIR}")
     print(f"[compose] figures out:    {FIG_DIR}")
+    if args.data_card_id:
+        print(f"[compose] data_card_id:   {args.data_card_id}")
 
-    smoke = _load_or_warn(BENCH_DIR / "synthetic_smoke.json")
+    smoke = _load_or_warn(args.heldout_json)
     if smoke:
-        compose_heldout(smoke, FIG_DIR / "fig_heldout_panel.pdf")
+        compose_heldout(smoke, FIG_DIR / "fig_heldout_panel.pdf", args.heldout_json, args.data_card_id)
 
-    sparsity = _load_or_warn(BENCH_DIR / "sparsity_sweep.json")
+    sparsity = _load_or_warn(args.sparsity_json)
     if sparsity:
-        compose_sparsity(sparsity, FIG_DIR / "fig_sparsity_sweep.pdf")
+        compose_sparsity(sparsity, FIG_DIR / "fig_sparsity_sweep.pdf", args.sparsity_json, args.data_card_id)
 
-    compose_conformal(FIG_DIR / "fig_conformal_calibration.pdf")
+    compose_conformal(FIG_DIR / "fig_conformal_calibration.pdf", args.data_card_id)
 
-    loo = _load_or_warn(BENCH_DIR / "leave_one_context.json")
+    loo = _load_or_warn(args.loo_json)
     if loo:
-        compose_loo(loo, FIG_DIR / "fig_leave_one_context.pdf")
+        compose_loo(loo, FIG_DIR / "fig_leave_one_context.pdf", args.loo_json, args.data_card_id)
 
     print("[compose] all figures composed")
     return 0
