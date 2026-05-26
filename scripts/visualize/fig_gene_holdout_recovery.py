@@ -15,6 +15,7 @@ Outputs:
 NOTE: This is a defensible imputation benchmark on a single modality (RNA → RNA).
 It is NOT a proteomics / CODEX cross-modality surrogate.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -80,42 +81,165 @@ def run_gene_holdout_recovery(
     valid = pcc[~np.isnan(pcc)]
     axes[0].hist(valid, bins=20, color="#4C72B0", edgecolor="#1f1f1f", alpha=0.85)
     if valid.size:
-        axes[0].axvline(float(np.mean(valid)), color="#C44E52", linestyle="--",
-                        label=f"mean={float(np.mean(valid)):.3f}")
+        axes[0].axvline(
+            float(np.mean(valid)),
+            color="#C44E52",
+            linestyle="--",
+            label=f"mean={float(np.mean(valid)):.3f}",
+        )
         axes[0].legend(fontsize=8)
     axes[0].set_xlabel("Per-held-out-gene Pearson")
     axes[0].set_ylabel("Held-out genes")
-    axes[0].set_title(f"Holdout recovery (n_held={n_hold} of {n_hvg_target} HVGs, frac={fraction:.0%})")
+    axes[0].set_title(
+        f"Holdout recovery (n_held={n_hold} of {n_hvg_target} HVGs, frac={fraction:.0%})"
+    )
     axes[0].grid(axis="y", linestyle=":", alpha=0.4)
 
-    label_key = pick_label_key(target_adata, ["cell_class", "annotation", "spatial_cluster", "cancer_type"])
+    label_key = pick_label_key(
+        target_adata, ["cell_class", "annotation", "spatial_cluster", "cancer_type"]
+    )
     if label_key is not None:
         labels = target_adata.obs[label_key].astype(str).to_numpy()
         unique = sorted(np.unique(labels).tolist())
         palette = stable_categorical_colors(np.array(unique))
         per_class_pcc = []
         for c in unique:
-            mask = (labels == c)
+            mask = labels == c
             if mask.sum() < 3:
                 per_class_pcc.append(np.nan)
                 continue
             pcc_c = _per_gene_pcc(raw[mask][:, hold_idx], imp[mask][:, hold_idx])
             per_class_pcc.append(float(np.nanmean(pcc_c)) if np.isfinite(pcc_c).any() else np.nan)
         bars = axes[1].bar(unique, per_class_pcc, color=[palette[c] for c in unique])
-        axes[1].set_ylabel(f"Mean per-gene Pearson")
+        axes[1].set_ylabel("Mean per-gene Pearson")
         axes[1].set_title(f"Per-{label_key} recovery on held-out genes")
         axes[1].grid(axis="y", linestyle=":", alpha=0.4)
         for b, v in zip(bars, per_class_pcc):
             if v is None or np.isnan(v):
                 continue
-            axes[1].annotate(f"{v:.2f}", (b.get_x() + b.get_width() / 2, v), ha="center", va="bottom", fontsize=8)
+            axes[1].annotate(
+                f"{v:.2f}", (b.get_x() + b.get_width() / 2, v), ha="center", va="bottom", fontsize=8
+            )
         plt.setp(axes[1].get_xticklabels(), rotation=30, ha="right", fontsize=7)
     else:
         axes[1].text(0.5, 0.5, "No class label\nin .obs", ha="center", va="center")
         axes[1].set_axis_off()
 
-    fig.suptitle("Held-out HVG imputation recovery (single-modality, NOT a proteomics surrogate)", fontsize=10)
+    fig.suptitle(
+        "Held-out HVG imputation recovery (single-modality, NOT a proteomics surrogate)",
+        fontsize=10,
+    )
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
     return {"n_held": int(n_hold), "held_genes": hold_genes, "mean_pcc": float(np.nanmean(pcc))}
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — self-contained render entry point (model + benchmark in one call)
+# ---------------------------------------------------------------------------
+def render_gene_holdout_recovery(
+    adata: AnnData, out_path: Path, holdout_fraction: float = 0.2
+) -> None:
+    """This is a held-out gene imputation benchmark — NOT a proteomics validation."""
+    from lumina_st.config.lumina_config import LuminaSTConfig
+    from lumina_st.core.lumina_imputer import LuminaImputer
+    from lumina_st.latents.tiny_vae import TinyVAE
+
+    rng = np.random.default_rng(42)
+
+    n_genes = adata.n_vars
+    n_hvg_target = min(n_genes, max(20, int(n_genes * 0.4)))
+    hvg_idx = topn_variable_genes(adata, n=n_hvg_target)
+    n_hold = max(5, int(round(holdout_fraction * len(hvg_idx))))
+    hold_idx = list(rng.choice(hvg_idx, size=n_hold, replace=False))
+    hold_genes = [adata.var_names[i] for i in hold_idx]
+
+    # Build a lightweight LuminaImputer with TinyVAE (no SCVI dependency)
+    cfg = LuminaSTConfig(
+        latent_dim=16,
+        hidden_size=64,
+        depth=2,
+        num_heads=2,
+        batch_size=64,
+        max_epochs=1,
+        cancer_types=["T0"],
+        apply_sparsity=False,
+    )
+    imputer = LuminaImputer.from_config(cfg)
+    imputer.module.vae = TinyVAE(input_dim=n_genes, latent_dim=cfg.latent_dim)
+
+    enhanced = imputer.enhance(adata, cancer_type="T0", held_out_genes=hold_genes)
+    if "imputed" not in enhanced.layers:
+        return
+
+    raw = to_dense(adata.X)
+    imp = np.asarray(enhanced.layers["imputed"])
+    pcc = _per_gene_pcc(raw[:, hold_idx], imp[:, hold_idx])
+
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6))
+    valid = pcc[~np.isnan(pcc)]
+
+    # Panel A — recovery-PCC histogram
+    axes[0].hist(valid, bins=20, color="#4C72B0", edgecolor="#1f1f1f", alpha=0.85)
+    if valid.size:
+        axes[0].axvline(
+            float(np.mean(valid)),
+            color="#C44E52",
+            linestyle="--",
+            label=f"mean={float(np.mean(valid)):.3f}",
+        )
+        axes[0].legend(fontsize=8)
+    axes[0].set_xlabel("Per-held-out-gene Pearson")
+    axes[0].set_ylabel("Held-out genes")
+    axes[0].set_title(
+        f"Holdout recovery (n_held={n_hold} of {n_hvg_target} HVGs, frac={holdout_fraction:.0%})"
+    )
+    axes[0].grid(axis="y", linestyle=":", alpha=0.4)
+
+    # Panel B — per-cell-type Pearson matrix (heatmap-like bar chart)
+    label_key = pick_label_key(
+        adata, ["cell_class", "annotation", "spatial_cluster", "cancer_type"]
+    )
+    if label_key is not None:
+        labels = adata.obs[label_key].astype(str).to_numpy()
+        unique = sorted(np.unique(labels).tolist())
+        palette = stable_categorical_colors(np.array(unique))
+        per_class_pcc: list[float] = []
+        for c in unique:
+            mask = labels == c
+            if mask.sum() < 3:
+                per_class_pcc.append(np.nan)
+                continue
+            pcc_c = _per_gene_pcc(raw[mask][:, hold_idx], imp[mask][:, hold_idx])
+            per_class_pcc.append(float(np.nanmean(pcc_c)) if np.isfinite(pcc_c).any() else np.nan)
+        bars = axes[1].bar(
+            unique,
+            per_class_pcc,
+            color=[palette[c] for c in unique],
+        )
+        axes[1].set_ylabel("Mean per-gene Pearson")
+        axes[1].set_title(f"Per-{label_key} recovery on held-out genes")
+        axes[1].grid(axis="y", linestyle=":", alpha=0.4)
+        for b, v in zip(bars, per_class_pcc):
+            if v is None or np.isnan(v):
+                continue
+            axes[1].annotate(
+                f"{v:.2f}",
+                (b.get_x() + b.get_width() / 2, v),
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+        plt.setp(axes[1].get_xticklabels(), rotation=30, ha="right", fontsize=7)
+    else:
+        axes[1].text(0.5, 0.5, "No class label\nin .obs", ha="center", va="center")
+        axes[1].set_axis_off()
+
+    fig.suptitle(
+        "Held-out HVG imputation recovery (single-modality, NOT a proteomics surrogate)",
+        fontsize=10,
+    )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)

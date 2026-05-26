@@ -8,7 +8,7 @@ training and inference. It hides all the Lightning / flow / transformer details.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import anndata as ad
 import pytorch_lightning as pl
@@ -38,8 +38,11 @@ class LuminaImputer:
         self.sparsity_ratio = None
         if config.gene_sparsity_ratio_file and Path(config.gene_sparsity_ratio_file).exists():
             import pandas as pd
+
             try:
-                self.sparsity_ratio = pd.read_csv(config.gene_sparsity_ratio_file, index_col=0).squeeze()
+                self.sparsity_ratio = pd.read_csv(
+                    config.gene_sparsity_ratio_file, index_col=0
+                ).squeeze()
             except Exception as e:
                 print(f"Warning: Failed to load sparsity file: {e}")
 
@@ -68,15 +71,12 @@ class LuminaImputer:
 
     @classmethod
     def from_checkpoint(
-        cls,
-        checkpoint_path: str,
-        vae_checkpoint_path: str,
-        **kwargs
+        cls, checkpoint_path: str, vae_checkpoint_path: str, **kwargs
     ) -> "LuminaImputer":
         from ..latents.scvi_vae import SCVILatentEncoder
 
         # 1. Load the diffusion/transformer checkpoint
-        ckpt = torch.load(checkpoint_path, map_location='cpu')
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
         hparams = ckpt.get("hyper_parameters", {})
 
         # Map baseline stPainter hyperparams to LuminaSTConfig fields
@@ -106,6 +106,7 @@ class LuminaImputer:
 
         # 2. Reconstruct Transformer Model
         from ..data.cancer_registry import CancerRegistry
+
         registry = None
         if config.cancer_registry_file and Path(config.cancer_registry_file).exists():
             registry = CancerRegistry.from_file(config.cancer_registry_file)
@@ -113,7 +114,7 @@ class LuminaImputer:
             registry = CancerRegistry({c: i for i, c in enumerate(config.cancer_types)})
         else:
             registry = CancerRegistry.default_pan_cancer()
-        
+
         num_classes = hparams.get("num_classes", len(registry))
 
         transformer = LuminaTransformer(
@@ -140,7 +141,7 @@ class LuminaImputer:
             n_batch=n_batch,
             n_hidden=n_hidden,
             n_latent=n_latent,
-            n_layers=n_layers
+            n_layers=n_layers,
         )
 
         # 4. Instantiate LuminaFlowModule
@@ -185,7 +186,6 @@ class LuminaImputer:
         observations to score how well the model recovers masked signal.
         """
         import numpy as np
-        import scanpy as sc
 
         cfg = self.config
         adata = st_adata.copy()
@@ -223,13 +223,30 @@ class LuminaImputer:
             expr = np.asarray(expr, dtype=np.float32).copy()
             var_names = list(adata.var_names)
             mask_idx = [var_names.index(g) for g in held_out_genes if g in var_names]
+            missing = [g for g in held_out_genes if g not in var_names]
+            if missing:
+                import warnings
+
+                warnings.warn(
+                    f"[LuminaST] {len(missing)}/{len(held_out_genes)} held-out genes "
+                    f"not found in adata.var_names and will be skipped. "
+                    f"First 5 missing: {missing[:5]}"
+                )
             if mask_idx:
                 expr[:, mask_idx] = 0.0
+            print(
+                f"[LuminaST] Holding out {len(mask_idx)}/{len(held_out_genes)} "
+                f"genes for recovery benchmark"
+            )
 
         x = torch.from_numpy(expr).float()
-        
+
         # Move inputs to correct device if model is on a GPU
-        device = next(self.module.parameters()).device if list(self.module.parameters()) else torch.device("cpu")
+        device = (
+            next(self.module.parameters()).device
+            if list(self.module.parameters())
+            else torch.device("cpu")
+        )
         x = x.to(device)
 
         # 3. Encode to latent space
@@ -261,38 +278,42 @@ class LuminaImputer:
             if sparsity_style == "gene" and self.sparsity_ratio is not None:
                 # Apply baseline-matching per-gene sparsity constraint
                 import pandas as pd
+
                 vals = None
-                if isinstance(self.sparsity_ratio, pd.DataFrame) and cancer_type in self.sparsity_ratio:
+                if (
+                    isinstance(self.sparsity_ratio, pd.DataFrame)
+                    and cancer_type in self.sparsity_ratio
+                ):
                     vals = self.sparsity_ratio[cancer_type].values
                 elif isinstance(self.sparsity_ratio, pd.Series):
                     vals = self.sparsity_ratio.values
-                
+
                 if vals is not None and len(vals) == x_imputed.shape[1]:
                     vals_tensor = torch.tensor(vals, dtype=x_imputed.dtype, device=x_imputed.device)
                     N, G = x_imputed.shape
-                    
+
                     # Sort each column independently
                     sorted_data, _ = torch.sort(x_imputed, dim=0)
-                    
+
                     # Calculate index interpolation bounds
                     indices = vals_tensor * (N - 1)
                     indices_low = torch.floor(indices).long().clamp(0, N - 1)
                     indices_high = torch.ceil(indices).long().clamp(0, N - 1)
                     weight = indices - indices_low.float()
-                    
+
                     # Gather values from sorted_data
                     val_low = torch.gather(sorted_data, 0, indices_low.unsqueeze(0))
                     val_high = torch.gather(sorted_data, 0, indices_high.unsqueeze(0))
-                    
+
                     # Interpolate thresholds
                     thresh = val_low + weight.unsqueeze(0) * (val_high - val_low)
-                    
+
                     # Apply threshold mask
                     mask = x_imputed < thresh
                     active_cols = (vals_tensor > 0.0).unsqueeze(0)
                     mask = mask & active_cols
                     x_imputed[mask] = 0.0
-                    
+
                     # Boundary conditions: ratio >= 1.0 => column must be all zeros
                     zero_cols = (vals_tensor >= 1.0).unsqueeze(0)
                     x_imputed = torch.where(zero_cols, torch.zeros_like(x_imputed), x_imputed)
@@ -304,11 +325,11 @@ class LuminaImputer:
                 idx_low = int(np.floor(idx_float))
                 idx_high = int(np.ceil(idx_float))
                 weight = idx_float - idx_low
-                
+
                 val_low = sorted_data[:, idx_low]
                 val_high = sorted_data[:, idx_high]
                 thresh = val_low + weight * (val_high - val_low)
-                
+
                 mask = x_imputed < thresh.unsqueeze(1)
                 x_imputed[mask] = 0.0
 
@@ -323,7 +344,6 @@ class LuminaImputer:
             adata.layers["imputed_latent"] = x_imputed.detach().cpu().numpy()
 
         return adata
-
 
     def fit(
         self,

@@ -6,8 +6,9 @@ Panels:
   2. `obsm['latent_observed']`  (encoder pre-flow)
   3. `obsm['latent_enhanced']`  (encoder post-flow)
 
-Each colored by Leiden of latent_enhanced and by the in-data true label.
+Each coloured by Leiden of latent_enhanced and by the in-data true label.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -45,18 +46,31 @@ def _umap_from_pca(adata: AnnData) -> np.ndarray:
     return np.asarray(a.obsm["X_umap"])
 
 
-def render_comparative_umaps(adata: AnnData, out_path: Path) -> None:
+def render_comparative_umaps(
+    adata: AnnData, out_path: Path, label_key: str = "cancer_type"
+) -> None:
     ensure_leiden(adata, use_rep="latent_enhanced", key="leiden_bio")
-    label_key = pick_label_key(adata, ["cancer_type", "spatial_cluster", "annotation"])
+    true_key = pick_label_key(
+        adata,
+        [
+            label_key,
+            "cancer_type",
+            "annotation",
+            "cell_type",
+            "celltype",
+            "label",
+            "spatial_cluster",
+        ],
+    )
 
-    panels = []
+    panels: list[tuple[str, np.ndarray]] = []
     panels.append(("raw PCA", _umap_from_pca(adata)))
     if "latent_observed" in adata.obsm:
         panels.append(("latent_observed", _umap_from_rep(adata, "latent_observed")))
     if "latent_enhanced" in adata.obsm:
         panels.append(("latent_enhanced", _umap_from_rep(adata, "latent_enhanced")))
 
-    color_keys = ["leiden_bio"] + ([label_key] if label_key else [])
+    color_keys = ["leiden_bio"] + ([true_key] if true_key else [])
     n_rows = len(color_keys)
     n_cols = len(panels)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.6 * n_cols, 3.4 * n_rows), squeeze=False)
@@ -70,9 +84,11 @@ def render_comparative_umaps(adata: AnnData, out_path: Path) -> None:
                 m = (cats == c).to_numpy()
                 ax.scatter(coords[m, 0], coords[m, 1], s=3, color=palette[c], label=str(c))
             ax.set_title(f"{name}\n· colour: {ck}", fontsize=9)
-            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_yticks([])
             if len(cats.unique()) <= 8:
                 ax.legend(fontsize=5, markerscale=1.5, loc="best", frameon=False)
     fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
