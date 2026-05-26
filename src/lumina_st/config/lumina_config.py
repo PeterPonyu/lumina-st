@@ -45,6 +45,9 @@ class LuminaSTConfig(BaseModel):
     vae_checkpoint: Optional[Path] = None
     freeze_vae_encoder: bool = True
     vae_batch_key: str = "batch"  # or "Tumor Type" in original data
+    latent_encoder_backend: Literal["tiny_vae", "scvi", "scgpt", "nicheformer", "geneformer", "uce"] = "tiny_vae"
+    foundation_embedding_dim: Optional[int] = None
+    foundation_checkpoint: Optional[Path] = None
 
     # ------------------------------------------------------------------
     # Flow / Diffusion model architecture (the LuminaTransformer)
