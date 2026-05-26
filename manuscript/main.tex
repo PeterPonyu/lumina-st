@@ -64,16 +64,21 @@ real-data promotion is gated by the project claim ledger.}
 \label{sec:intro}
 
 Spatial transcriptomics (ST) preserves gene-expression context within native
-tissue architecture. Image-based single-cell-resolution platforms (e.g.\
-Xenium, CosMx, MERSCOPE) capture only $\sim$300--5{,}000 genes per slide;
-imputation methods predict the unmeasured genes from spatial context plus
-an external reference. Prior art covers alignment-based, generative, and
-diffusion-based approaches; we cite these as motivation rather than
-copying their methodology. LuminaST contributes three independent levers:
-(i)~a uniform adapter contract that makes head-to-head comparison
-audit-safe; (ii)~first-party split-conformal prediction intervals around any
-imputer; (iii)~a per-transcript Binomial detection-rate sweep that matches
-the physical noise model of imaging-based ST.
+tissue architecture~\cite{Wolf2018Scanpy}. Image-based single-cell-resolution
+platforms (e.g.\ Xenium, CosMx, MERSCOPE) capture only $\sim$300--5{,}000
+genes per slide; imputation methods predict the unmeasured genes from
+spatial context plus an external reference. Prior art covers alignment-based,
+generative~\cite{Lopez2018scVI}, style-transfer~\cite{Song2025SpaIM}, and
+uncertainty-aware approaches~\cite{Sun2024TISSUE}; we cite these as
+motivation rather than copying their methodology. LuminaST contributes
+three independent levers: (i)~a uniform adapter contract that makes
+head-to-head comparison audit-safe; (ii)~first-party split-conformal
+prediction intervals~\cite{Vovk2005Conformal,Romano2019Conformalized}
+around any imputer; (iii)~a per-transcript Binomial detection-rate sweep
+that matches the physical noise model of imaging-based ST. The latent
+generative backbone follows the flow-matching
+formulation~\cite{Lipman2023FlowMatching} with conditioning via adaptive
+normalization~\cite{Peebles2023DiT}.
 
 Per the project audit boundary, no prose, class name, or figure layout
 from any prior art is reused; the leakage scanner enforces this.
