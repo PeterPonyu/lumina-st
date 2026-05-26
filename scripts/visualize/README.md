@@ -35,3 +35,22 @@ Under `docs/biology/<mode>/<dataset>/figures/`:
 - `cancer_panel.png` (real only) — small-multiples panel across all available cancer slices
 
 `docs/biology/BIOLOGY_REPORT.md` collects everything with embedded thumbnails.
+
+## Clean-room manuscript figure drafts
+
+The following scripts render deterministic, claim-gated visual drafts inspired
+only by reference-paper visualization grammar. They use local benchmark JSON
+when present and otherwise label values as planning/demo evidence.
+
+```bash
+python scripts/visualize/fig_reference_visual_story.py
+python scripts/visualize/fig_composed_main_claim.py
+```
+
+Outputs:
+
+- `results/figures/lumina_reference_visual_story.png`
+- `results/figures/lumina_composed_main_claim.png`
+
+These outputs are visualization planning artifacts, not evidence of
+pan-cancer, baseline-superiority, or publication-ready biological claims.

@@ -1,16 +1,18 @@
 # LuminaST
 
-**Illuminating Latent Priors for High-Fidelity Pan-Cancer Spatial Transcriptomics at Single-Cell Resolution**
+**Target API for schema-aware spatial transcriptomics enhancement and imputation**
 
-LuminaST is a deep generative framework that learns **universal latent priors** from massive pan-cancer single-cell RNA atlases and uses them to **enhance and impute** noisy or sparse spatial transcriptomics (ST) data — without retraining per tumor type.
+LuminaST is a local research package for spatial transcriptomics (ST) enhancement and imputation experiments. Current evidence supports synthetic/local-small smoke validation; pan-cancer, zero-shot, platform-transfer, and baseline-superiority claims remain gated by `../docs/CLAIM_LEDGER.md`.
 
-Given a new ST slice (any cancer, any platform), LuminaST returns:
-- An enhanced latent embedding (superior for fine-grained cell typing and spatial domain detection)
-- A high-quality imputed gene expression matrix (ready for differential expression, ligand-receptor analysis, etc.)
+Given a schema-valid ST slice, the target API returns:
+- an enhanced latent embedding for downstream evaluation;
+- an imputed gene-expression layer for benchmarked analyses.
+
+Do not treat these outputs as biologically superior or analysis-ready until the corresponding claim-ledger rows have local benchmark, data-card, and figure evidence.
 
 ## Why "LuminaST"?
 
-The name evokes a "light" (lumen) that illuminates the true biological signals hidden inside imperfect spatial measurements. The priors act as a denoising beacon learned once from the collective diversity of human cancers.
+The name evokes a "light" (lumen) for examining weak or sparse spatial measurements. The current package is a benchmark-controlled implementation surface, not yet evidence for broad biological improvement.
 
 ## Installation (Planned)
 
@@ -44,22 +46,20 @@ enhanced = imputer.enhance(st_slice)          # returns AnnData with .obsm['late
 
 ## Architecture (High Level)
 
-1. **Latent Encoder** — Lightweight VAE (scVI-style or internal) pretrained on pan-cancer scRNA atlas → 50/100-dim latents.
+1. **Latent Encoder** — Lightweight VAE (scVI-style or internal) for reference-atlas latent experiments → 50/100-dim latents.
 2. **Conditional Flow Matching** — `LatentVelocityNet` (DiT-style transformer with class conditioning + CFG) learns the velocity field of the latent distribution.
 3. **Guided Imputation** — For a new ST observation, encode observed genes → partial noise forward to `t_forward` → conditional reverse sampling (with cancer-type guidance) → decode + sparsity-aware post-processing.
 
-This is the exact scientific contribution of the stPainter line of work, fully rebranded, deduplicated, and modernized for new publications.
+This architecture defines the local LuminaST implementation surface. Publication claims are controlled by the claim ledger and must be validated with local benchmarks before manuscript use.
 
-## Relationship to Baseline
+## Prior Art and Audit Boundary
 
-LuminaST is a **heavy refactor + complete rebrand** of the public `stPainter` repository (Yang et al., bioRxiv 2026). The core mathematical machinery (VAE + conditional flow matching on latents + guided partial denoising) is faithfully preserved and numerically validated, while **every identifier, docstring, config system, and narrative** has been freshly authored under the LuminaST brand.
+LuminaST is an independent package and manuscript track for spatial-transcriptomics enhancement. The public stPainter preprint and repository are treated as prior art for the general research problem and for audit comparison only; LuminaST's user-facing API, documentation, validation plan, figures, and manuscript claims must be written from local evidence.
 
-See [BASELINE_COMPARISON.md](./BASELINE_COMPARISON.md) and the immutable audit clone in `../baselines/stPainter-original/` for the complete change log and leakage audit.
+See [BASELINE_COMPARISON.md](./BASELINE_COMPARISON.md) and the immutable audit clone in `../baselines/stPainter-original/` for traceability and leakage checks. Claims graduate to the manuscript only through the project claim ledger and reproducible benchmark artifacts, not by inheriting claims from the reference work.
 
-**Citation of the inspirational work** (will appear in final paper):
+**Prior-art citation** (to appear in final paper):
 > Yang, Y. et al. "Enhancing Pan-cancer Spatial Transcriptomics at Single-cell Resolution with stPainter." bioRxiv (2026).
-
-We cite it as prior art and inspiration only. All new code, experiments, and claims are original to the LuminaST project.
 
 ## Status (2026-05-21)
 
@@ -68,7 +68,7 @@ We cite it as prior art and inspiration only. All new code, experiments, and cla
 
 Next: Phase 2 (LuminaST high-level API, latent encoder, transformer, guided imputation).
 
-Target: two independent publication-grade packages + two new bioRxiv preprints with fresh 2026 experiments.
+Target: two independent publication-grade packages and manuscript tracks once the claim ledger, benchmark contracts, data cards, and reproducible figure artifacts support the intended claims.
 
 ## License
 
