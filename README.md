@@ -81,3 +81,14 @@ MIT (to be confirmed — matching the clean spirit of the baselines).
 ---
 
 *Part of the Lumina / Aether spatial omics re-implementation program, 2026.*
+
+### Optional foundation-model latent encoders
+
+Round 6 adds a lightweight adapter seam for spatial/single-cell foundation
+models. `lumina_st.latents.FoundationLatentEncoder` can wrap scGPT-spatial,
+Nicheformer, SAGE-FM, Geneformer/UCE-style embedding callables, project their
+cell embeddings to LuminaST latent space, and keep the downstream flow API
+unchanged. These backends are optional: no heavyweight checkpoint dependency is
+installed by default, and the bundled linear decoder is a smoke/readout path
+rather than paper-ready calibrated imputation. See
+`docs_foundation_encoder_landscape.md`.
