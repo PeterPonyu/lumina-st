@@ -19,6 +19,13 @@
 \titleformat{\section}{\bfseries\normalsize}{\thesection}{0.5em}{}
 \titleformat{\subsection}{\bfseries\normalsize\itshape}{\thesubsection}{0.5em}{}
 
+% Round 9 P2: "Fig. N." bold caption prefix with period (matches reference bioRxiv style)
+\renewcommand{\figurename}{Fig.}
+\captionsetup{labelfont=bf,labelsep=period}
+
+% Round 9 P5: ABSTRACT uppercase bold heading (matches reference bioRxiv style)
+\renewcommand{\abstractname}{\textbf{ABSTRACT}}
+
 \title{LuminaST: Schema-aware Spatial Transcriptomics Enhancement with Calibrated Uncertainty}
 
 \author[1]{Anonymous Authors}
@@ -45,7 +52,7 @@
 \begin{abstract}
 Single-cell-resolution spatial transcriptomics is constrained by the gene
 panel and per-transcript detection rate of the imaging platform. We
-introduce \textbf{LuminaST}, a schema-aware enhancement framework that
+introduce \textbf{\textsc{LuminaST}}, a schema-aware enhancement framework that
 combines a latent flow-matching imputer with a first-party split-conformal
 uncertainty wrapper. Across a synthetic benchmark of six adapter contracts
 (mean, kNN, LuminaST, and four external competitors evaluated via shared
@@ -70,7 +77,7 @@ genes per slide; imputation methods predict the unmeasured genes from
 spatial context plus an external reference. Prior art covers alignment-based,
 generative~\cite{Lopez2018scVI}, style-transfer~\cite{Song2025SpaIM}, and
 uncertainty-aware approaches~\cite{Sun2024TISSUE}; we cite these as
-motivation rather than copying their methodology. LuminaST contributes
+motivation rather than copying their methodology. \textsc{LuminaST} contributes
 three independent levers: (i)~a uniform adapter contract that makes
 head-to-head comparison audit-safe; (ii)~first-party split-conformal
 prediction intervals~\cite{Vovk2005Conformal,Romano2019Conformalized}
@@ -86,7 +93,7 @@ from any prior art is reused; the leakage scanner enforces this.
 \section{Method}
 \label{sec:method}
 
-LuminaST exposes a single API: a configurable \texttt{LuminaImputer}
+\textsc{LuminaST} exposes a single API: a configurable \texttt{LuminaImputer}
 that, given a schema-valid AnnData (with the configurable
 \texttt{vae\_batch\_key} column in \texttt{.obs}, gene names in
 \texttt{.var\_names}, and a counts or normalized matrix in \texttt{.X}),
@@ -125,6 +132,22 @@ metric.
 \section{Results}
 \label{sec:results}
 
+\subsection{Overview of \textsc{LuminaST}}
+\label{sec:res-overview}
+
+\textsc{LuminaST} is delivered as four independently-testable surfaces.
+\emph{(i)}~A uniform adapter contract (Section~\ref{sec:bench-contract})
+runs six imputers on identical inputs with held-out marker genes masked
+before any method sees the data. \emph{(ii)}~A split-conformal wrapper
+(Section~\ref{sec:conformal}) attaches calibrated $(1-\alpha)$ prediction
+intervals to any base imputer with no retraining. \emph{(iii)}~A
+per-transcript Bernoulli detection-rate sweep characterizes robustness
+under the imaging-platform physical noise model. \emph{(iv)}~A
+leave-one-context cross-validation harness produces bootstrap confidence
+intervals over held-out contexts. Each surface is exercised by the
+synthetic benchmark below; real-data graduation remains gated by the
+project claim ledger.
+
 \subsection{Held-out gene panel recovery (synthetic placeholder)}
 \label{sec:res-heldout}
 
@@ -132,13 +155,13 @@ We score each adapter on the held-out marker panel
 $\{\textit{CD4}, \textit{CD8A}, \textit{CD68}, \textit{EPCAM},
 \textit{ENG}, \textit{POSTN}\}$ defined statically before any imputation
 runs (panel registered in \texttt{lumina\_st.benchmarks.panels.TME\_IMMUNE\_STROMAL}).
-Figure~\ref{fig:heldout} reports per-gene Pearson, Spearman, RMSE on
-z-normalized values, and per-cell zero-pattern Jaccard for the always-available
-adapters; the four external adapters (SpaIM, TISSUE, stMCDI, CellT)
-correctly report \texttt{unavailable} status until their upstream packages
-are installed. \emph{Numbers in this figure are synthetic placeholders;
-real-data figures will replace them once the corresponding data card
-graduates from \texttt{pending\_*}.}
+Figure~\ref{fig:heldout} reports per-gene Pearson, Spearman, and RMSE on
+z-normalized values for the always-available adapters; the four external
+adapters (SpaIM, TISSUE, stMCDI, CellT) correctly report
+\texttt{unavailable} status until their upstream packages are installed.
+\emph{Numbers in this figure are synthetic placeholders; real-data figures
+will replace them once the corresponding data card graduates from
+\texttt{pending\_*}.}
 
 \begin{figure}[t]
   \centering
@@ -146,6 +169,9 @@ graduates from \texttt{pending\_*}.}
   \caption{Held-out marker-panel recovery on synthetic placeholder data.
   Six adapters evaluated under the shared \texttt{BaseAdapter} contract;
   four external competitors record \texttt{unavailable} until installed.
+  \textbf{a}, per-gene Pearson ($\uparrow$).
+  \textbf{b}, per-gene Spearman ($\uparrow$).
+  \textbf{c}, per-gene RMSE on z-normalized values ($\downarrow$).
   Source: \texttt{lumina-st/results/benchmark/synthetic\_smoke.json}.}
   \label{fig:heldout}
 \end{figure}
@@ -162,9 +188,11 @@ Figure~\ref{fig:sparsity}b shows per-method recovery degradation.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_sparsity_sweep.pdf}
-  \caption{Sparsity / detection-rate sweep. (a) Observed sparsity vs
-  Bernoulli detection-rate fraction. (b) Per-adapter mean Pearson at each
-  fraction. Source: \texttt{lumina-st/results/benchmark/sparsity\_sweep.json}.}
+  \caption{Sparsity / detection-rate sweep.
+  \textbf{a}, observed matrix sparsity rises monotonically as the
+  Bernoulli detection-rate fraction drops from $1.0$ to $0.05$.
+  \textbf{b}, per-adapter mean Pearson ($\uparrow$) at each fraction.
+  Source: \texttt{lumina-st/results/benchmark/sparsity\_sweep.json}.}
   \label{fig:sparsity}
 \end{figure}
 
@@ -182,9 +210,13 @@ empirical-vs-nominal coverage and mean interval width.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_conformal_calibration.pdf}
-  \caption{Conformal prediction-interval calibration. (a) Empirical vs
-  nominal coverage. (b) Mean interval width vs $\alpha$. Black diagonal in
-  (a) is the perfect-calibration line. Source: deterministic re-run of
+  \caption{Conformal prediction-interval calibration.
+  \textbf{a}, empirical coverage of split-conformal intervals against the
+  nominal target $(1-\alpha)$ for the \texttt{mean} and \texttt{knn} base
+  adapters; black diagonal is the perfect-calibration line.
+  \textbf{b}, mean interval width as $\alpha$ varies in
+  $\{0.05, 0.10, 0.20\}$.
+  Source: deterministic re-run of
   \texttt{lumina\_st.benchmarks.uncertainty.ConformalCalibrator}.}
   \label{fig:conformal}
 \end{figure}
@@ -200,16 +232,20 @@ confidence intervals over $K$ folds.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_leave_one_context.pdf}
-  \caption{Leave-one-context CV across four synthetic cancer contexts.
-  Bars are per-fold mean Pearson; whiskers are bootstrap 95\% CI over
-  folds. Source: \texttt{lumina-st/results/benchmark/leave\_one\_context.json}.}
+  \caption{Leave-one-context cross-validation across four synthetic
+  cancer contexts. One panel per always-available adapter; bars give
+  per-fold mean Pearson ($\uparrow$), dashed line is the bootstrap point
+  estimate, shaded band the bootstrap 95\% confidence interval over
+  folds. \textbf{a-c}, per-adapter views (\texttt{mean}, \texttt{knn},
+  \texttt{lumina\_st}).
+  Source: \texttt{lumina-st/results/benchmark/leave\_one\_context.json}.}
   \label{fig:loo}
 \end{figure}
 
 \section{Discussion}
 \label{sec:discussion}
 
-LuminaST in its present synthetic-evaluation form is not a claim of
+\textsc{LuminaST} in its present synthetic-evaluation form is not a claim of
 biological superiority over any prior method. The audit boundary requires
 that every promotion of a claim from \texttt{validated-small} or
 \texttt{blocked} to \texttt{paper-ready} be backed by real-data evidence
