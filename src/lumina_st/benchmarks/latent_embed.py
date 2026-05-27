@@ -53,7 +53,7 @@ def latent_pca(
     if k < n_components:
         pad = np.zeros((x.shape[0], n_components - k), dtype=np.float64)
         out = np.concatenate([out, pad], axis=1)
-    return out
+    return np.asarray(out, dtype=np.float64)
 
 
 def latent_umap(
