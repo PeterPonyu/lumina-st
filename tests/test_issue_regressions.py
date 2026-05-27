@@ -178,6 +178,53 @@ def test_contract_pinned_benchmark_result_is_versionable() -> None:
     assert ignored.returncode == 1
 
 
+def test_enhance_without_vae_raises_when_gene_width_mismatches_latent_dim() -> None:
+    """Regression for #29: README quick start path crashed deep inside the
+    transformer when adata.n_vars != cfg.latent_dim with no VAE attached.
+    enhance() should now fail closed with an actionable ValueError.
+    """
+    import anndata as ad
+    import numpy as np
+    import pandas as pd
+
+    from lumina_st import LuminaImputer
+    from lumina_st.config import LuminaSTConfig
+
+    cfg = LuminaSTConfig(latent_dim=50, cancer_types=["COAD"], num_sampling_steps=1)
+    imputer = LuminaImputer.from_config(cfg)
+    st = ad.AnnData(
+        np.ones((3, 5), dtype="float32"),
+        obs=pd.DataFrame({"cancer_type": ["COAD"] * 3}),
+        var=pd.DataFrame(index=[f"g{i}" for i in range(5)]),
+    )
+    st.obsm["spatial"] = np.zeros((3, 2), dtype="float32")
+
+    with pytest.raises(ValueError, match="latent_dim"):
+        imputer.enhance(st)
+
+
+def test_enhance_without_vae_succeeds_when_widths_match() -> None:
+    """Matched-width call (n_vars == latent_dim, no VAE) must still work."""
+    import anndata as ad
+    import numpy as np
+    import pandas as pd
+
+    from lumina_st import LuminaImputer
+    from lumina_st.config import LuminaSTConfig
+
+    cfg = LuminaSTConfig(latent_dim=5, cancer_types=["COAD"], num_sampling_steps=1)
+    imputer = LuminaImputer.from_config(cfg)
+    st = ad.AnnData(
+        np.ones((3, 5), dtype="float32"),
+        obs=pd.DataFrame({"cancer_type": ["COAD"] * 3}),
+        var=pd.DataFrame(index=[f"g{i}" for i in range(5)]),
+    )
+    st.obsm["spatial"] = np.zeros((3, 2), dtype="float32")
+
+    out = imputer.enhance(st)
+    assert "latent_enhanced" in out.obsm
+
+
 def test_all_torch_load_calls_use_weights_only() -> None:
     import ast
 
