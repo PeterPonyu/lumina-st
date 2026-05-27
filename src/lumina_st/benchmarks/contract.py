@@ -190,6 +190,13 @@ class BaseAdapter(ABC):
         t0 = time.perf_counter()
         try:
             imputed = self._impute(masked, inp)
+            runtime = time.perf_counter() - t0
+            truth = inp.truth_matrix()
+            metrics = compute_imputation_metrics(
+                truth=truth,
+                imputed=imputed,
+                held_out_genes=inp.held_out_genes,
+            )
         except Exception as exc:
             return AdapterResult(
                 method=self.name,
@@ -199,14 +206,6 @@ class BaseAdapter(ABC):
                 status=f"error:{type(exc).__name__}: {exc}",
                 runtime_s=time.perf_counter() - t0,
             )
-        runtime = time.perf_counter() - t0
-
-        truth = inp.truth_matrix()
-        metrics = compute_imputation_metrics(
-            truth=truth,
-            imputed=imputed,
-            held_out_genes=inp.held_out_genes,
-        )
 
         return AdapterResult(
             method=self.name,
@@ -248,7 +247,11 @@ def compute_imputation_metrics(
     if held_out_genes:
         cols = [var_names.index(g) for g in held_out_genes if g in var_names]
         if not cols:
-            cols = list(range(truth.shape[1]))
+            raise ValueError(
+                f"None of the {len(held_out_genes)} requested held_out_genes are present "
+                f"in imputed.var_names; requested={held_out_genes[:5]}..., "
+                f"available={var_names[:5]}..."
+            )
     else:
         cols = list(range(truth.shape[1]))
 
