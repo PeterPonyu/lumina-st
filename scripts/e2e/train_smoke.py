@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Smoke-train LuminaST on the synthetic AnnData produced by
-`scripts/data/prepare_synthetic_lumina.py`.
+"""Smoke-train LuminaST on a bounded synthetic AnnData.
 
-This is the minimum-viable proof that the training pipeline works end-to-end
-on this machine. Sidesteps the `--config` Pydantic-extra bug in
-`train_latent_flow.py` by calling `imputer.fit()` directly with a tiny
-config.
+By default this script generates an in-memory synthetic reference atlas using
+``scripts/data_flow/generate_synthetic_st.py`` so it works from a standalone
+``lumina-st`` checkout. Pass ``--data`` to smoke-train on an existing h5ad.
 
 Usage:
     python scripts/e2e/train_smoke.py            # 2 epochs, CPU or GPU auto
@@ -17,6 +15,7 @@ The script prints runtime, final loss, device used, and the checkpoint path.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
@@ -24,8 +23,12 @@ import anndata as ad
 import pytorch_lightning as pl
 import torch
 
-from lumina_st.config.lumina_config import LuminaSTConfig
-from lumina_st.core.lumina_imputer import LuminaImputer
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from lumina_st.config.lumina_config import LuminaSTConfig  # noqa: E402
+from lumina_st.core.lumina_imputer import LuminaImputer  # noqa: E402
 
 
 def main() -> int:
@@ -33,13 +36,8 @@ def main() -> int:
     parser.add_argument(
         "--data",
         type=Path,
-        default=Path(__file__).resolve().parents[3]
-        / "data"
-        / "processed"
-        / "synthetic"
-        / "lumina_st"
-        / "target_spatial.h5ad",
-        help="Path to synthetic AnnData (defaults to the parent repo's data/processed/...).",
+        default=None,
+        help="Optional path to an AnnData h5ad. If omitted, a bounded synthetic atlas is generated in memory.",
     )
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -60,14 +58,31 @@ def main() -> int:
 
     pl.seed_everything(args.seed, workers=True)
 
-    if not args.data.exists():
-        print(f"FAIL: synthetic AnnData not found at {args.data}")
-        print("Run `python scripts/data/prepare_synthetic_lumina.py` from the repo root first.")
-        return 1
+    if args.data is None:
+        from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st
 
-    adata = ad.read_h5ad(args.data)
-    print(f"[train-smoke] loaded {args.data.name}: n_cells={adata.n_obs}, n_genes={adata.n_vars}")
-    print(f"[train-smoke] cancer types: {sorted(adata.obs['cancer_type'].unique().tolist())}")
+        adata, _, _ = generate_synthetic_reference_and_st(
+            n_ref_cells=96,
+            n_st_cells=32,
+            n_genes=24,
+            seed=args.seed,
+        )
+        print(
+            f"[train-smoke] generated in-memory synthetic atlas: "
+            f"n_cells={adata.n_obs}, n_genes={adata.n_vars}"
+        )
+    else:
+        if not args.data.exists():
+            print(f"FAIL: AnnData file not found at {args.data}")
+            print("Omit --data to use the built-in synthetic smoke fixture.")
+            return 1
+        adata = ad.read_h5ad(args.data)
+        print(
+            f"[train-smoke] loaded {args.data.name}: n_cells={adata.n_obs}, n_genes={adata.n_vars}"
+        )
+
+    cancer_types = sorted(str(x) for x in adata.obs["cancer_type"].unique().tolist())
+    print(f"[train-smoke] cancer types: {cancer_types}")
 
     # Tiny config for fast smoke. The no-VAE training path treats X as
     # already-latent (see LuminaFlowModule.training_step), so latent_dim
@@ -75,15 +90,15 @@ def main() -> int:
     # When a real VAE is wired in, latent_dim becomes independent of n_genes.
     cfg = LuminaSTConfig(
         latent_dim=adata.n_vars,
-        hidden_size=64,
-        depth=2,
+        hidden_size=32,
+        depth=1,
         num_heads=4,
         mlp_ratio=2.0,
         patch_size=1,
         batch_size=args.batch_size,
         max_epochs=args.epochs,
         num_workers=0,
-        cancer_types=["COAD", "OV", "LIHC", "BRCA"],
+        cancer_types=cancer_types,
         vae_batch_key="cancer_type",
     )
     print(
@@ -123,7 +138,7 @@ def main() -> int:
     imputer.fit(trainer=trainer, reference_adata=adata)
     runtime = time.perf_counter() - t0
 
-    out_dir = Path(__file__).resolve().parents[2] / args.out_dir
+    out_dir = REPO_ROOT / args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = out_dir / f"smoke_{accel}.ckpt"
     torch.save(
