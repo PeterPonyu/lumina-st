@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 import sys
 import argparse
 import json
@@ -15,14 +14,14 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root))
 
-from lumina_st.config.lumina_config import LuminaSTConfig
-from lumina_st.latents.tiny_vae import TinyVAE
-from lumina_st.latents.scvi_vae import SCVILatentEncoder
-from lumina_st.models.lumina_transformer import LuminaTransformer
-from lumina_st.modules.lumina_flow_module import LuminaFlowModule
-from lumina_st.core.lumina_imputer import LuminaImputer
-from lumina_st.data.datasets import ReferenceAtlasDataset
-from lumina_st.data.cancer_registry import CancerRegistry
+from lumina_st.config.lumina_config import LuminaSTConfig  # noqa: E402
+from lumina_st.latents.tiny_vae import TinyVAE  # noqa: E402
+from lumina_st.models.lumina_transformer import LuminaTransformer  # noqa: E402
+from lumina_st.modules.lumina_flow_module import LuminaFlowModule  # noqa: E402
+from lumina_st.core.lumina_imputer import LuminaImputer  # noqa: E402
+from lumina_st.data.datasets import ReferenceAtlasDataset  # noqa: E402
+from lumina_st.data.cancer_registry import CancerRegistry  # noqa: E402
+
 
 def get_device():
     if torch.cuda.is_available():
@@ -32,20 +31,29 @@ def get_device():
             _ = torch.relu(test_tensor)
             return torch.device("cuda")
         except Exception as e:
-            print(f"[WARNING] CUDA is available but failed test execution (likely capability mismatch): {e}")
+            print(
+                f"[WARNING] CUDA is available but failed test execution (likely capability mismatch): {e}"
+            )
             print("Falling back to CPU.")
             return torch.device("cpu")
     return torch.device("cpu")
 
+
 def main(args):
     device = get_device()
     print(f"Using device: {device}")
-    
+
     # 1. Generate or Load Data
-    DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "baselines" / "stpainter"
-    if DATA_ROOT.exists() and (DATA_ROOT / "processed").exists():
+    DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "baselines" / "stpainter"
+    if DATA_ROOT.exists() and any(
+        (DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")
+    ):
         print("[INFO] Loading real baseline stPainter dataset...")
-        processed = DATA_ROOT / "processed"
+        processed = (
+            DATA_ROOT / "processed"
+            if (DATA_ROOT / "processed").exists()
+            else DATA_ROOT / "processed_data"
+        )
         ref = sc.read_h5ad(processed / "sc_train.h5ad")
         possible_targets = list(processed.glob("st_*_test.h5ad"))
         target = sc.read_h5ad(possible_targets[0])
@@ -53,6 +61,7 @@ def main(args):
     else:
         print("[INFO] Generating synthetic data for evaluation...")
         from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st
+
         ref, target, cancer_names = generate_synthetic_reference_and_st(
             n_ref_cells=1500, n_st_cells=400, n_genes=100, n_cancer_types=4, seed=42
         )
@@ -69,10 +78,12 @@ def main(args):
         np.random.seed(42)
         cell_types = [f"cell_type_{i}" for i in range(5)]
         target.obs["cell_type"] = np.random.choice(cell_types, size=target.n_obs)
-        
-    cancers = sorted(ref.obs.get("cancer_type", ref.obs.get("Tumor Type", ["UNKNOWN"])).unique().tolist())
+
+    cancers = sorted(
+        ref.obs.get("cancer_type", ref.obs.get("Tumor Type", ["UNKNOWN"])).unique().tolist()
+    )
     registry = CancerRegistry({c: i for i, c in enumerate(cancers)})
-    
+
     cfg = LuminaSTConfig(
         latent_dim=args.latent_dim,
         max_epochs=args.max_epochs,
@@ -80,12 +91,12 @@ def main(args):
         guidance_scale=args.guidance_scale,
         cancer_types=cancers,
     )
-    
+
     # 2. Train VAE
     print("\n--- Training Latent Encoder (TinyVAE fallback) ---")
     vae = TinyVAE(input_dim=ref.n_vars, latent_dim=cfg.latent_dim).to(device)
     vae_wrapper = vae
-    
+
     # Simple training loop for TinyVAE
     opt_vae = torch.optim.Adam(vae.parameters(), lr=0.01)
     x_tensor = torch.tensor(ref.X, dtype=torch.float32).to(device)
@@ -95,11 +106,11 @@ def main(args):
         opt_vae.zero_grad()
         loss.backward()
         opt_vae.step()
-    
+
     # 3. Train Flow
     dataset = ReferenceAtlasDataset(ref, cfg, registry)
     loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True)
-    
+
     transformer = LuminaTransformer(
         latent_dim=cfg.latent_dim,
         patch_size=1,
@@ -109,10 +120,10 @@ def main(args):
         mlp_ratio=4.0,
         num_classes=len(registry),
     ).to(device)
-    
+
     module = LuminaFlowModule(cfg, transformer, vae=vae_wrapper).to(device)
     opt_flow = torch.optim.Adam(module.parameters(), lr=0.001)
-    
+
     print("--- Training Lumina Flow Module ---")
     for epoch in range(cfg.max_epochs):
         for x, y in loader:
@@ -123,28 +134,28 @@ def main(args):
             opt_flow.zero_grad()
             loss.backward()
             opt_flow.step()
-            
+
     # 4. Enhance Target ST
     print("\n--- Running Latent Space Enhancement ---")
     imputer = LuminaImputer(cfg, module)
     enhanced = imputer.enhance(target, cancer_type=cancer_type)
-    
+
     # 5. Latent Space Auditing
     print("\n--- Evaluating Latent Space Quality ---")
-    
+
     # Extract latents
     target_tensor = torch.tensor(target.X, dtype=torch.float32).to(device)
     with torch.no_grad():
         z_vae, _ = vae_wrapper.encode_to_latent(target_tensor, None)
     z_vae = z_vae.cpu().numpy()
     z_enhanced = enhanced.obsm["latent_enhanced"]
-    
+
     # Compute Silhouette Scores (distance metric)
     labels = target.obs["cell_type"].values
-    
+
     sil_vae = silhouette_score(z_vae, labels)
     sil_enhanced = silhouette_score(z_enhanced, labels)
-    
+
     # Compute clustering performance (Leiden-like clustering on latents)
     # Using scanpy to cluster VAE space
     adata_vae = sc.AnnData(X=z_vae)
@@ -152,14 +163,14 @@ def main(args):
     sc.tl.leiden(adata_vae, resolution=0.5)
     ari_vae = adjusted_rand_score(labels, adata_vae.obs["leiden"])
     nmi_vae = normalized_mutual_info_score(labels, adata_vae.obs["leiden"])
-    
+
     # Using scanpy to cluster Enhanced space
     adata_enh = sc.AnnData(X=z_enhanced)
     sc.pp.neighbors(adata_enh, use_rep="X")
     sc.tl.leiden(adata_enh, resolution=0.5)
     ari_enhanced = adjusted_rand_score(labels, adata_enh.obs["leiden"])
     nmi_enhanced = normalized_mutual_info_score(labels, adata_enh.obs["leiden"])
-    
+
     results = {
         "dataset_shape": target.shape,
         "silhouette_vae": float(sil_vae),
@@ -169,7 +180,7 @@ def main(args):
         "nmi_vae": float(nmi_vae),
         "nmi_enhanced": float(nmi_enhanced),
     }
-    
+
     print("\nQuality Metrics Summary:")
     print(f"  Silhouette Score (VAE):      {sil_vae:.4f}")
     print(f"  Silhouette Score (Enhanced): {sil_enhanced:.4f}")
@@ -177,7 +188,7 @@ def main(args):
     print(f"  Adjusted Rand Index (Enh):   {ari_enhanced:.4f}")
     print(f"  Normalized Mutual Info (VAE):{nmi_vae:.4f}")
     print(f"  Normalized Mutual Info (Enh):{nmi_enhanced:.4f}")
-    
+
     # Save output
     output_dir = Path(args.output).parent
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -188,26 +199,30 @@ def main(args):
     # 6. Try UMAP visualization export if possible
     try:
         import matplotlib.pyplot as plt
+
         print("\nGenerating UMAP comparison plot...")
         sc.tl.umap(adata_vae)
         sc.tl.umap(adata_enh)
-        
+
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        
+
         # Plot VAE UMAP
         adata_vae.obs["cell_type"] = labels
         sc.pl.umap(adata_vae, color="cell_type", ax=axes[0], show=False, title="VAE Latent UMAP")
-        
+
         # Plot Enhanced UMAP
         adata_enh.obs["cell_type"] = labels
-        sc.pl.umap(adata_enh, color="cell_type", ax=axes[1], show=False, title="Flow-Enhanced Latent UMAP")
-        
+        sc.pl.umap(
+            adata_enh, color="cell_type", ax=axes[1], show=False, title="Flow-Enhanced Latent UMAP"
+        )
+
         plot_path = output_dir / "latent_umap_comparison.png"
         plt.tight_layout()
         plt.savefig(plot_path, dpi=150)
         print(f"UMAP comparison plot saved to {plot_path}")
     except Exception as e:
         print(f"Could not generate plot: {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -13,7 +13,6 @@ import torch
 import torch.nn as nn
 
 try:
-    import scvi
     from scvi.model import SCVI
     from scvi.module import VAE
     _HAS_SCVI = True
@@ -75,7 +74,7 @@ class SCVILatentEncoder(nn.Module):
         )
         
         # Load weights from checkpoint
-        ckpt = torch.load(checkpoint_path, map_location='cpu')
+        ckpt = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
         state_dict = ckpt.get("state_dict", ckpt)
         
         # Strip 'model.' prefix
