@@ -25,7 +25,11 @@ wheels/
 *.egg
 
 # Results and logs
-results/
+scripts/results/
+results/*
+!results/benchmark/
+results/benchmark/*
+!results/benchmark/lumina_sweep_latest.json
 *.log
 
 # Local OMX/runtime state

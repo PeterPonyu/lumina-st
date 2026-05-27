@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import torch
 import scanpy as sc
-import numpy as np
 from pathlib import Path
 from lumina_st.core.lumina_imputer import LuminaImputer
 
@@ -11,16 +9,20 @@ def main():
     # 1. Paths to checkpoints and data
     vae_path = "data/baselines/stpainter/checkpoint/vae_50.ckpt"
     diff_path = "data/baselines/stpainter/checkpoint/diffusion_50.ckpt"
-    registry_path = "lumina-st/configs/stpainter_registry.yaml"
+    registry_path = "configs/stpainter_registry.yaml"
     data_path = "data/baselines/stpainter/processed_data/st_CESC_test.h5ad"
     
     if not Path(vae_path).exists() or not Path(diff_path).exists():
-        print("[ERROR] Baseline checkpoints not found. Run scripts/download_baselines.py first.")
-        return
-        
+        print(
+            "[ERROR] Baseline checkpoints not found. "
+            "Run `lumina download --cancer-type CESC --output-dir "
+            "data/baselines/stpainter/checkpoint` first, or provide local baseline files."
+        )
+        return 1
+
     if not Path(data_path).exists():
         print("[ERROR] Target ST dataset not found.")
-        return
+        return 1
 
     # 2. Load the imputer from baseline checkpoints
     print("Loading LuminaImputer from checkpoints...")
@@ -63,6 +65,7 @@ def main():
         print("imputed mean/std:", imputed_val.mean(), imputed_val.std())
         
     print("\n✅ Verification script completed.")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
