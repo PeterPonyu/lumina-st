@@ -93,41 +93,71 @@ from any prior art is reused; the leakage scanner enforces this.
 \section{Method}
 \label{sec:method}
 
-\textsc{LuminaST} exposes a single API: a configurable \texttt{LuminaImputer}
-that, given a schema-valid AnnData (with the configurable
-\texttt{vae\_batch\_key} column in \texttt{.obs}, gene names in
-\texttt{.var\_names}, and a counts or normalized matrix in \texttt{.X}),
-returns an AnnData with \texttt{layers["imputed"]} populated. The
-benchmark contract (Section~\ref{sec:bench-contract}) extends this with
-audit-safe held-out gene masking and per-result provenance capture; the
-conformal wrapper (Section~\ref{sec:conformal}) adds calibrated prediction
-intervals.
+\subsection{Problem formulation}
+\label{sec:problem-formulation}
 
-\subsection{Benchmark adapter contract}
+A spatial transcriptomics dataset is a tuple $(\mathbf{X}, \mathbf{S},
+\mathbf{C})$ where $\mathbf{X} \in \mathbb{R}^{N \times G}$ is the
+per-cell expression matrix on the imaged $G$-gene panel,
+$\mathbf{S} \in \mathbb{R}^{N \times 2}$ are the cell-centroid
+coordinates, and $\mathbf{C}$ collects per-cell context labels
+(\texttt{vae\_batch\_key} = cancer type, slide, or replicate). An
+imputation adapter is a deterministic map
+$f_\theta\!:\!(\mathbf{X}, \mathbf{S}, \mathbf{C}) \mapsto
+\mathbf{X}^{\text{imp}} \in \mathbb{R}^{N \times G}$ that fills the
+masked positions of a held-out gene panel $H \subset \{1,\ldots,G\}$.
+The audit boundary enforces that $f_\theta$ never observes the truth
+columns $\mathbf{X}_{:,H}$; the benchmark contract masks $\mathbf{X}_{:,H}
+\leftarrow 0$ before any adapter is invoked.
+
+\subsection{Architecture: adapter contract + conformal wrapper}
 \label{sec:bench-contract}
 
 Each method we compare implements a uniform \texttt{BaseAdapter}
 subclassing pattern. Held-out genes are masked to zero in the observed
 matrix \emph{before} any adapter sees the input; the truth matrix is
 retained separately and visible only to the scoring code. Per-result
-provenance records command, seed, hardware, dependency versions, and the
-git SHA of the running checkout. Five test files in
+provenance records command, seed, hardware, dependency versions, and
+the git SHA of the running checkout. Six test files in
 \texttt{lumina-st/tests/benchmarks/} independently verify that held-out
 values never reach any adapter under any sweep configuration.
 
-\subsection{Conformal calibration}
-\label{sec:conformal}
-
-For miscoverage level $\alpha$, we partition the input cells into a
-calibration set and a test set. On the calibration cells the base imputer
-produces a point estimate; per-gene residuals
-$r_j = |x_j^{\text{truth}} - x_j^{\text{imputed}}|$ define the split-conformal
-quantile half-width
+The conformal wrapper attaches calibrated $(1-\alpha)$ prediction
+intervals to any base imputer (no extra training required; promotion
+of the calibration to a paper-ready claim remains gated by the
+project claim ledger until real-data evidence is available). For miscoverage
+level $\alpha$, we partition the input cells into a calibration set
+and a test set. On the calibration cells the base imputer produces a
+point estimate; per-gene residuals $r_j = |x_j^{\text{truth}} -
+x_j^{\text{imputed}}|$ define the split-conformal quantile half-width
 $\hat{q}_j = \mathrm{Quantile}\!\left[r_j, (1-\alpha)(1+1/n_{\text{cal}})\right].$
 For each test cell the prediction interval is
-$[\hat{x}_j - \hat{q}_j,\ \hat{x}_j + \hat{q}_j].$
-The empirical coverage on the test cells is reported alongside the point
-metric.
+$[\hat{x}_j - \hat{q}_j,\ \hat{x}_j + \hat{q}_j],$ and the empirical
+coverage on the test cells is reported alongside the point metric.
+
+\subsection{Training and inference protocol}
+\label{sec:training-protocol}
+
+All adapters are run under the deterministic protocol fixed by
+\texttt{lumina\_st.benchmarks.runner}: a single integer
+\texttt{split\_seed} drawn from the data card seeds every random choice
+(panel sub-sampling, calibration/test split, leave-one-context fold
+order). The \emph{always-available} baselines (\texttt{mean},
+\texttt{knn}, \texttt{lumina\_st}) run end-to-end on every invocation;
+the four external competitors (\texttt{SpaIM}, \texttt{TISSUE},
+\texttt{stMCDI}, \texttt{CellT}) emit \texttt{status="unavailable"}
+with an explicit upstream-install hint until their packages are
+installed. The sparsity sweep applies per-transcript Bernoulli
+thinning at fractions $\{1.0, 0.5, 0.25, 0.1, 0.05\}$ before adapter
+invocation, matching the physical noise model of imaging-based ST.
+Leave-one-context cross-validation builds an adapter via a factory
+that receives only the non-held-out contexts; per-fold mean Pearson is
+reported with bootstrap 95\% confidence intervals over
+$B = 1000$ resamples. Downstream sub-population analysis
+(\texttt{lumina\_st.benchmarks.subpopulation}) performs KMeans
+sub-clustering on a major-cell-type subset followed by Mann-Whitney
+DEG identification with Benjamini-Hochberg FDR correction
+(\texttt{lumina\_st.metrics.statistical.benjamini\_hochberg}).
 
 \section{Results}
 \label{sec:results}
