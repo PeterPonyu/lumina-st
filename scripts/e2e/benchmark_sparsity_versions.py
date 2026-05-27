@@ -136,7 +136,7 @@ def main():
         print(f"Max absolute difference (NumPy vs Our GPU): {max_diff_gpu:.2e}")
         
     # 5. WRITE BENCHMARK REPORT
-    report_path = "lumina-st/SPARSITY_BENCHMARK_REPORT.md"
+    report_path = "SPARSITY_BENCHMARK_REPORT.md"
     print(f"\nSaving benchmark report to {report_path}...")
     
     with open(report_path, "w") as f:
