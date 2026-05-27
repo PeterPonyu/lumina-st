@@ -52,7 +52,7 @@ def main() -> int:
         "--out-dir",
         type=Path,
         default=Path("results/training/smoke"),
-        help="Where to save the checkpoint (relative to lumina-st/).",
+        help="Where to save the checkpoint (relative to the repo root).",
     )
     args = parser.parse_args()
 
