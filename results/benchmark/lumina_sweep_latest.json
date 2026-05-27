@@ -1,0 +1,169 @@
+{
+  "timestamp": "20260523-060829",
+  "device": "cuda",
+  "data_settings": {
+    "ref_cells": 1200,
+    "st_cells": 300,
+    "n_genes": 120,
+    "n_cancers": 3,
+    "seed": 42
+  },
+  "records": [
+    {
+      "config": {
+        "name": "tiny",
+        "latent_dim": 16,
+        "hidden_size": 32,
+        "depth": 2,
+        "num_heads": 2,
+        "max_epochs": 4,
+        "batch_size": 64
+      },
+      "device": "cuda",
+      "n_params": 256985,
+      "wall_seconds": {
+        "vae_pretrain": 0.2418992109996907,
+        "flow_train": 0.36078833600004145,
+        "enhance": 0.0970508249993145,
+        "total": 0.6997383719990466
+      },
+      "peak_gpu_mem_mb": 36.08251953125,
+      "metrics": {
+        "mean_pearson": 0.003051260719075799,
+        "mean_spearman": -0.008497218950346363,
+        "ari_enhanced_vs_original": 1.0,
+        "nmi_enhanced_vs_original": 1.0
+      },
+      "data": {
+        "ref_cells": 1200,
+        "ref_genes": 120,
+        "st_cells": 300,
+        "st_genes": 120,
+        "cancer_types": [
+          "T0",
+          "T1",
+          "T2"
+        ]
+      },
+      "enhanced_path": "results/benchmark/enhanced/tiny.h5ad",
+      "loss_curve_path": "results/benchmark/curves/tiny.json"
+    },
+    {
+      "config": {
+        "name": "small",
+        "latent_dim": 32,
+        "hidden_size": 64,
+        "depth": 2,
+        "num_heads": 2,
+        "max_epochs": 4,
+        "batch_size": 64
+      },
+      "device": "cuda",
+      "n_params": 403257,
+      "wall_seconds": {
+        "vae_pretrain": 0.006142786000054912,
+        "flow_train": 0.30527471200002765,
+        "enhance": 0.042696844999227324,
+        "total": 0.3541143429993099
+      },
+      "peak_gpu_mem_mb": 78.17724609375,
+      "metrics": {
+        "mean_pearson": 0.0063118599355220795,
+        "mean_spearman": 0.003483612315536694,
+        "ari_enhanced_vs_original": 1.0,
+        "nmi_enhanced_vs_original": 1.0
+      },
+      "data": {
+        "ref_cells": 1200,
+        "ref_genes": 120,
+        "st_cells": 300,
+        "st_genes": 120,
+        "cancer_types": [
+          "T0",
+          "T1",
+          "T2"
+        ]
+      },
+      "enhanced_path": "results/benchmark/enhanced/small.h5ad",
+      "loss_curve_path": "results/benchmark/curves/small.json"
+    },
+    {
+      "config": {
+        "name": "wide",
+        "latent_dim": 32,
+        "hidden_size": 128,
+        "depth": 2,
+        "num_heads": 4,
+        "max_epochs": 4,
+        "batch_size": 64
+      },
+      "device": "cuda",
+      "n_params": 915897,
+      "wall_seconds": {
+        "vae_pretrain": 0.007984456000485807,
+        "flow_train": 0.3129885220005235,
+        "enhance": 0.09028709100130072,
+        "total": 0.41126006900231005
+      },
+      "peak_gpu_mem_mb": 142.5400390625,
+      "metrics": {
+        "mean_pearson": 0.006906556896865368,
+        "mean_spearman": 0.005366873322383392,
+        "ari_enhanced_vs_original": 1.0,
+        "nmi_enhanced_vs_original": 1.0
+      },
+      "data": {
+        "ref_cells": 1200,
+        "ref_genes": 120,
+        "st_cells": 300,
+        "st_genes": 120,
+        "cancer_types": [
+          "T0",
+          "T1",
+          "T2"
+        ]
+      },
+      "enhanced_path": "results/benchmark/enhanced/wide.h5ad",
+      "loss_curve_path": "results/benchmark/curves/wide.json"
+    },
+    {
+      "config": {
+        "name": "deep",
+        "latent_dim": 32,
+        "hidden_size": 64,
+        "depth": 4,
+        "num_heads": 4,
+        "max_epochs": 4,
+        "batch_size": 64
+      },
+      "device": "cuda",
+      "n_params": 552633,
+      "wall_seconds": {
+        "vae_pretrain": 0.005697713000699878,
+        "flow_train": 0.47237676700024167,
+        "enhance": 0.10044184900107211,
+        "total": 0.5785163290020137
+      },
+      "peak_gpu_mem_mb": 81.03369140625,
+      "metrics": {
+        "mean_pearson": 0.00844272505491972,
+        "mean_spearman": 0.0019917114796944102,
+        "ari_enhanced_vs_original": 1.0,
+        "nmi_enhanced_vs_original": 1.0
+      },
+      "data": {
+        "ref_cells": 1200,
+        "ref_genes": 120,
+        "st_cells": 300,
+        "st_genes": 120,
+        "cancer_types": [
+          "T0",
+          "T1",
+          "T2"
+        ]
+      },
+      "enhanced_path": "results/benchmark/enhanced/deep.h5ad",
+      "loss_curve_path": "results/benchmark/curves/deep.json"
+    }
+  ]
+}
