@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Smoke-train LuminaST on the synthetic AnnData produced by
-`scripts/data/prepare_synthetic_lumina.py`.
+`scripts/data_flow/generate_synthetic_st.py`.
 
 This is the minimum-viable proof that the training pipeline works end-to-end
 on this machine. Sidesteps the `--config` Pydantic-extra bug in
@@ -33,13 +33,11 @@ def main() -> int:
     parser.add_argument(
         "--data",
         type=Path,
-        default=Path(__file__).resolve().parents[3]
+        default=Path(__file__).resolve().parents[2]
         / "data"
         / "processed"
-        / "synthetic"
-        / "lumina_st"
-        / "target_spatial.h5ad",
-        help="Path to synthetic AnnData (defaults to the parent repo's data/processed/...).",
+        / "synthetic_st_target.h5ad",
+        help="Path to synthetic AnnData (defaults to data/processed/synthetic_st_target.h5ad inside the lumina-st repo).",
     )
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -62,7 +60,10 @@ def main() -> int:
 
     if not args.data.exists():
         print(f"FAIL: synthetic AnnData not found at {args.data}")
-        print("Run `python scripts/data/prepare_synthetic_lumina.py` from the repo root first.")
+        print(
+            "Run `python scripts/data_flow/generate_synthetic_st.py` from the repo root"
+            " to generate the fixture, then re-run this script."
+        )
         return 1
 
     adata = ad.read_h5ad(args.data)
@@ -83,7 +84,7 @@ def main() -> int:
         batch_size=args.batch_size,
         max_epochs=args.epochs,
         num_workers=0,
-        cancer_types=["COAD", "OV", "LIHC", "BRCA"],
+        cancer_types=sorted(adata.obs["cancer_type"].unique().tolist()),
         vae_batch_key="cancer_type",
     )
     print(
