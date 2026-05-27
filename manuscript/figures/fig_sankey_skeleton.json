@@ -1,0 +1,6 @@
+{
+  "title": "Cluster mapping (synthetic placeholder)",
+  "source": "compose_sankey._synthetic_contingency",
+  "real_data_contract": "Replace _synthetic_contingency() with a loader that returns {truth_label: {pred_label: count}} from real Day 5 cluster labels (per docs/DATA_PREP_CALENDAR.md).",
+  "rendered_path": "fig_sankey_skeleton.png"
+}
