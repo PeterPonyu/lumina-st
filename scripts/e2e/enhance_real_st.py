@@ -87,7 +87,7 @@ def main(args):
         ref_path = processed / "sc_train.h5ad"
         if not ref_path.exists():
             raise FileNotFoundError(
-                f"Reference atlas {ref_path} missing — re-run scripts/download_baselines.py --lumina."
+                f"Reference atlas {ref_path} missing — re-run `python -m lumina_st.cli.download`."
             )
         ref = sc.read_h5ad(ref_path)
         # Pick the first available cancer test file as target
