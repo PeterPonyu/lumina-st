@@ -121,4 +121,9 @@ if __name__ == "__main__":
     print(f"  Reference atlas: {ref.n_obs} cells, {ref.n_vars} genes, {len(names)} cancer types")
     print(f"  Target ST      : {st.n_obs} cells, sparsity ~{(st.X == 0).mean():.1%}")
     print(f"  Cancer types   : {names}")
+
+    out_path = Path(__file__).resolve().parents[2] / "data" / "processed" / "synthetic_st_target.h5ad"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    st.write_h5ad(out_path)
+    print(f"  Saved target ST to: {out_path.relative_to(Path(__file__).resolve().parents[2])}")
     print("Ready for data_flow tests or e2e enhancement runs.")
