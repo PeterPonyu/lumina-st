@@ -169,9 +169,14 @@ will replace them once the corresponding data card graduates from
   \caption{Held-out marker-panel recovery on synthetic placeholder data.
   Six adapters evaluated under the shared \texttt{BaseAdapter} contract;
   four external competitors record \texttt{unavailable} until installed.
-  \textbf{a}, per-gene Pearson ($\uparrow$).
-  \textbf{b}, per-gene Spearman ($\uparrow$).
-  \textbf{c}, per-gene RMSE on z-normalized values ($\downarrow$).
+  Adapter color is stable across all four figures
+  (\texttt{lumina-st/manuscript/compose\_palette.py}).
+  \textbf{a}, mean per-gene Pearson over the six-marker panel ($\uparrow$).
+  \textbf{b}, mean per-gene Spearman ($\uparrow$).
+  \textbf{c}, mean per-gene RMSE on z-normalized values ($\downarrow$).
+  \textbf{d}, per-gene Pearson heatmap broken out by always-available
+  adapter (rows) and marker gene (columns); reveals which markers each
+  adapter recovers well.
   Source: \texttt{lumina-st/results/benchmark/synthetic\_smoke.json}.}
   \label{fig:heldout}
 \end{figure}
@@ -216,6 +221,9 @@ empirical-vs-nominal coverage and mean interval width.
   adapters; black diagonal is the perfect-calibration line.
   \textbf{b}, mean interval width as $\alpha$ varies in
   $\{0.05, 0.10, 0.20\}$.
+  \textbf{c}, coverage-gap heatmap (empirical $-$ nominal) over
+  (adapter, $\alpha$); a diverging \texttt{RdBu\_r} palette centers zero
+  at white so over- and under-coverage are immediately distinguishable.
   Source: deterministic re-run of
   \texttt{lumina\_st.benchmarks.uncertainty.ConformalCalibrator}.}
   \label{fig:conformal}
@@ -233,11 +241,14 @@ confidence intervals over $K$ folds.
   \centering
   \includegraphics[width=\textwidth]{figures/fig_leave_one_context.pdf}
   \caption{Leave-one-context cross-validation across four synthetic
-  cancer contexts. One panel per always-available adapter; bars give
-  per-fold mean Pearson ($\uparrow$), dashed line is the bootstrap point
-  estimate, shaded band the bootstrap 95\% confidence interval over
-  folds. \textbf{a-c}, per-adapter views (\texttt{mean}, \texttt{knn},
-  \texttt{lumina\_st}).
+  cancer contexts. Bars give per-fold mean Pearson ($\uparrow$); dashed
+  line is the bootstrap point estimate; shaded band the bootstrap 95\%
+  confidence interval over folds.
+  \textbf{a-c}, per-adapter views (\texttt{mean}, \texttt{knn},
+  \texttt{lumina\_st}) — bar color matches the adapter palette used in
+  Fig.~\ref{fig:heldout} and Fig.~\ref{fig:conformal}.
+  \textbf{d}, aggregate summary — grouped bars across all adapters per
+  context so cross-method patterns are readable from the same figure.
   Source: \texttt{lumina-st/results/benchmark/leave\_one\_context.json}.}
   \label{fig:loo}
 \end{figure}
