@@ -39,13 +39,26 @@ def render_sankey(
     Returns:
         ``out_path`` after writing.
     """
+    if not contingency:
+        raise ValueError("contingency must contain at least one truth label")
+    for truth_label, pred_counts in contingency.items():
+        if not pred_counts:
+            raise ValueError(f"contingency row {truth_label!r} must not be empty")
+        for pred_label, count in pred_counts.items():
+            if count < 0:
+                raise ValueError(
+                    f"contingency count for {truth_label!r}->{pred_label!r} must be >= 0"
+                )
+
     truth_labels = list(contingency.keys())
     pred_labels = sorted({p for d in contingency.values() for p in d.keys()})
 
     truth_totals = {t: sum(contingency[t].values()) for t in truth_labels}
     pred_totals = {p: sum(contingency[t].get(p, 0) for t in truth_labels)
                    for p in pred_labels}
-    total = sum(truth_totals.values()) or 1
+    total = sum(truth_totals.values())
+    if total <= 0:
+        raise ValueError("contingency must contain at least one positive count")
 
     fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
 
