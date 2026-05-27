@@ -142,4 +142,4 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    main(args)
+    raise SystemExit(0 if main(args) else 1)
