@@ -261,7 +261,7 @@ def main():
         })
         
     # Generate Markdown Report
-    report_path = "lumina-st/BASELINE_COMPARISON_REPORT.md"
+    report_path = "BASELINE_COMPARISON_REPORT.md"
     print(f"\nWriting audit report to {report_path}...")
     
     with open(report_path, "w") as f:

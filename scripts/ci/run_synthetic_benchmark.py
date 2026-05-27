@@ -4,7 +4,7 @@ COAD-shaped AnnData against the TME marker panel and writes the result JSON.
 
 Exists so the CI lane can prove the full benchmark contract works without
 external dependencies (SpaIM/TISSUE/etc. are gracefully recorded as
-unavailable). Promoted to `lumina-st/results/benchmark/synthetic_smoke.json`
+unavailable). Promoted to `results/benchmark/synthetic_smoke.json`
 for downstream figure scripts.
 
 Usage:
@@ -57,7 +57,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default="results/benchmark/synthetic_smoke.json",
-        help="Output JSON path (relative to lumina-st/ root)",
+        help="Output JSON path (relative to the repo root)",
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--n-cells", type=int, default=200)
