@@ -9,7 +9,9 @@ Usage example:
 """
 
 import argparse
+import json
 from pathlib import Path
+from typing import Any
 
 import pytorch_lightning as pl
 import scanpy as sc
@@ -23,10 +25,52 @@ from lumina_st.models.lumina_transformer import LuminaTransformer
 from lumina_st.modules.lumina_flow_module import LuminaFlowModule
 
 
+def _seed_worker(worker_id: int) -> None:
+    import random
+
+    import numpy as np
+
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def _load_config_overrides(config_path: str | None) -> dict[str, Any]:
+    if config_path is None:
+        return {}
+
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    if path.suffix.lower() == ".json":
+        raw = json.loads(path.read_text())
+    else:
+        try:
+            import yaml
+        except ImportError as exc:  # pragma: no cover - environment-specific
+            raise RuntimeError(
+                "YAML config files require PyYAML; use JSON or install PyYAML."
+            ) from exc
+        raw = yaml.safe_load(path.read_text())
+
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"Config file must contain a mapping: {path}")
+    return raw
+
+
+def _build_config(args: argparse.Namespace) -> LuminaSTConfig:
+    config_kwargs = _load_config_overrides(args.config)
+    cli_kwargs = {"seed": args.seed, "max_epochs": args.max_epochs}
+    return LuminaSTConfig(**{**config_kwargs, **cli_kwargs})
+
+
 def main(args):
     pl.seed_everything(args.seed, workers=True)
 
-    cfg = LuminaSTConfig(**vars(args)) if args.config else LuminaSTConfig()
+    cfg = _build_config(args)
     print("Loaded config:", cfg.model_dump_for_checkpoint())
 
     # Load reference atlas
@@ -35,10 +79,26 @@ def main(args):
 
     dataset = ReferenceAtlasDataset(adata, cfg, registry)
     train_len = int(0.9 * len(dataset))
-    train_ds, val_ds = random_split(dataset, [train_len, len(dataset) - train_len])
+    split_generator = torch.Generator().manual_seed(cfg.seed)
+    train_ds, val_ds = random_split(
+        dataset, [train_len, len(dataset) - train_len], generator=split_generator
+    )
 
-    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
-    val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, num_workers=cfg.num_workers)
+    loader_generator = torch.Generator().manual_seed(cfg.seed)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        generator=loader_generator,
+        worker_init_fn=_seed_worker,
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        worker_init_fn=_seed_worker,
+    )
 
     # Model
     transformer = LuminaTransformer(
@@ -67,10 +127,13 @@ def main(args):
     # Save
     out_dir = Path(cfg.output_dir) / cfg.experiment_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save({
-        "state_dict": module.transformer.state_dict(),
-        "config": cfg.model_dump_for_checkpoint(),
-    }, out_dir / "lumina_flow.ckpt")
+    torch.save(
+        {
+            "state_dict": module.transformer.state_dict(),
+            "config": cfg.model_dump_for_checkpoint(),
+        },
+        out_dir / "lumina_flow.ckpt",
+    )
     print(f"Model saved to {out_dir / 'lumina_flow.ckpt'}")
 
 

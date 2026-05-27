@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import os
 import urllib.request
+from pathlib import Path
 
 DEFAULT_DOWNLOAD_MAP = {
     "CESC": {
@@ -24,31 +25,29 @@ DEFAULT_DOWNLOAD_MAP = {
 }
 
 
-def download_file(url: str, dest_path: str, dry_run: bool = False) -> None:
-    """Download a file with progress indicator."""
+def download_file(url: str, dest_path: str, dry_run: bool = False, timeout: float = 30.0) -> None:
+    """Download a checkpoint without fabricating invalid fallback bytes.
+
+    Dry-runs report the target only. Network failures raise so downstream
+    ``torch.load`` cannot silently ingest a fake checkpoint.
+    """
     print(f"Downloading {url} -> {dest_path}")
     if dry_run:
-        print("[Dry-run] Would download file.")
-        # Create a mock empty file
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        with open(dest_path, "wb") as f:
-            f.write(b"MOCK CHECKPOINT DATA")
+        print("[Dry-run] Would download file; no checkpoint placeholder written.")
         return
 
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = f"{dest_path}.tmp"
     try:
-        # Set a short timeout for network requests in case of firewall/sandbox restrictions
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            with open(dest_path, 'wb') as out_file:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            with open(tmp_path, "wb") as out_file:
                 out_file.write(response.read())
+        os.replace(tmp_path, dest_path)
         print("Download complete.")
-    except Exception as e:
-        print(f"Error/Timeout downloading {url}: {e}")
-        # Create a mock file on failure so command succeeds in air-gapped environments
-        print("Falling back to creating mock local checkpoint for testing.")
-        with open(dest_path, "wb") as f:
-            f.write(b"MOCK CHECKPOINT DATA")
+    except Exception:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
 
 
 def main() -> None:
@@ -75,7 +74,10 @@ def main() -> None:
     print(f"Retrieving checkpoints for {cancer}...")
     download_file(diff_url, diff_dest, dry_run=args.dry_run)
     download_file(vae_url, vae_dest, dry_run=args.dry_run)
-    print(f"Successfully registered {cancer} checkpoints in {args.output_dir}/")
+    if args.dry_run:
+        print(f"Dry-run complete; no files written to {args.output_dir}/")
+    else:
+        print(f"Successfully registered {cancer} checkpoints in {args.output_dir}/")
 
 
 if __name__ == "__main__":

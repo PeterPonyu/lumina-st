@@ -28,20 +28,20 @@ import scanpy as sc
 import torch
 from torch.utils.data import DataLoader
 
-from lumina_st.config.lumina_config import LuminaSTConfig
-from lumina_st.latents.tiny_vae import TinyVAE
-from lumina_st.latents.scvi_vae import SCVILatentEncoder
-from lumina_st.models.lumina_transformer import LuminaTransformer
-from lumina_st.modules.lumina_flow_module import LuminaFlowModule
-from lumina_st.core.lumina_imputer import LuminaImputer
-from lumina_st.data.datasets import ReferenceAtlasDataset
-from lumina_st.data.cancer_registry import CancerRegistry
-from lumina_st.metrics.enhancement_evaluator import EnhancementEvaluator
+from lumina_st.config.lumina_config import LuminaSTConfig  # noqa: E402
+from lumina_st.latents.tiny_vae import TinyVAE  # noqa: E402
+from lumina_st.latents.scvi_vae import SCVILatentEncoder  # noqa: E402
+from lumina_st.models.lumina_transformer import LuminaTransformer  # noqa: E402
+from lumina_st.modules.lumina_flow_module import LuminaFlowModule  # noqa: E402
+from lumina_st.core.lumina_imputer import LuminaImputer  # noqa: E402
+from lumina_st.data.datasets import ReferenceAtlasDataset  # noqa: E402
+from lumina_st.data.cancer_registry import CancerRegistry  # noqa: E402
+from lumina_st.metrics.enhancement_evaluator import EnhancementEvaluator  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st
+from scripts.data_flow.generate_synthetic_st import generate_synthetic_reference_and_st  # noqa: E402
 
 try:
     from scvi.model import SCVI
@@ -72,7 +72,7 @@ def main(args):
     #           2. Real baseline data from labs/data/baselines/stpainter/ (if present)
     #           3. High-quality synthetic data (always works)
 
-    DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "baselines" / "stpainter"
+    DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "baselines" / "stpainter"
 
     if args.reference and args.target:
         ref = sc.read_h5ad(args.reference)

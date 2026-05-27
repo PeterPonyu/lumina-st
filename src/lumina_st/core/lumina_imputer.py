@@ -7,8 +7,11 @@ training and inference. It hides all the Lightning / flow / transformer details.
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+import numpy as np
 
 import anndata as ad
 import pytorch_lightning as pl
@@ -20,6 +23,18 @@ from ..data.cancer_registry import CancerRegistry
 from ..data.datasets import ReferenceAtlasDataset
 from ..models.lumina_transformer import LuminaTransformer
 from ..modules.lumina_flow_module import LuminaFlowModule
+
+
+def _seed_worker(worker_id: int) -> None:
+    """Seed NumPy/Python RNGs for deterministic DataLoader workers."""
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def _safe_torch_load(path: str | Path, *, map_location: str = "cpu") -> Any:
+    """Load local checkpoint tensors without enabling arbitrary pickle execution."""
+    return torch.load(path, map_location=map_location, weights_only=True)
 
 
 class LuminaImputer:
@@ -76,7 +91,7 @@ class LuminaImputer:
         from ..latents.scvi_vae import SCVILatentEncoder
 
         # 1. Load the diffusion/transformer checkpoint
-        ckpt = torch.load(checkpoint_path, map_location="cpu")
+        ckpt = _safe_torch_load(checkpoint_path, map_location="cpu")
         hparams = ckpt.get("hyper_parameters", {})
 
         # Map baseline stPainter hyperparams to LuminaSTConfig fields
@@ -353,7 +368,13 @@ class LuminaImputer:
         train_loader: Optional[DataLoader] = None,
         **trainer_kwargs,
     ) -> pl.Trainer:
-        """Train the flow model on a reference atlas."""
+        """Train the flow model on a reference atlas.
+
+        The package-level seed is applied before DataLoader/Trainer construction
+        so repeated smoke runs with the same ``LuminaSTConfig.seed`` are
+        reproducible.
+        """
+        pl.seed_everything(self.config.seed, workers=True)
         if train_loader is None:
             if reference_adata is None:
                 raise ValueError("Provide reference_adata or train_loader to train LuminaST")
@@ -366,11 +387,15 @@ class LuminaImputer:
                 registry = CancerRegistry.default_pan_cancer()
 
             dataset = ReferenceAtlasDataset(reference_adata, self.config, registry)
+            generator = torch.Generator()
+            generator.manual_seed(self.config.seed)
             train_loader = DataLoader(
                 dataset,
                 batch_size=self.config.batch_size,
                 shuffle=True,
                 num_workers=self.config.num_workers,
+                generator=generator,
+                worker_init_fn=_seed_worker,
             )
 
         if trainer is None:
