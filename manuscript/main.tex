@@ -71,10 +71,18 @@ real-data promotion is gated by the project claim ledger.}
 \label{sec:intro}
 
 Spatial transcriptomics (ST) preserves gene-expression context within native
-tissue architecture~\cite{Wolf2018Scanpy}. Image-based single-cell-resolution
+tissue architecture~\cite{Wolf2018Scanpy,Williams2022SpatialTranscriptomics}.
+Recent platform and protocol benchmarks emphasize that sequencing-based,
+imaging-based, and FFPE-compatible assays have different sensitivity,
+resolution, and tissue-handling tradeoffs~\cite{You2024SequencingST,
+Cervilla2026SixCancerPlatforms,Wang2025ImagingFFPE,Rademacher2025TumorST}.
+Image-based single-cell-resolution
 platforms (e.g.\ Xenium, CosMx, MERSCOPE) capture only $\sim$300--5{,}000
 genes per slide; imputation methods predict the unmeasured genes from
-spatial context plus an external reference. Prior art covers alignment-based,
+spatial context plus an external reference. Deconvolution and integration
+benchmarks make that reference dependence an explicit evaluation risk rather
+than a hidden preprocessing detail~\cite{Li2023DeconvolutionBenchmark,
+ClusteringIntegrationBenchmark2024}. Prior art covers alignment-based,
 generative~\cite{Lopez2018scVI}, style-transfer~\cite{Song2025SpaIM}, and
 uncertainty-aware approaches~\cite{Sun2024TISSUE}; we cite these as
 motivation rather than copying their methodology. \textsc{LuminaST} contributes
@@ -313,6 +321,10 @@ DEG validation helpers ship in \texttt{lumina\_st.benchmarks.subpopulation}
 but are demonstrated only on synthetic input; the paired-CODEX validation
 described in stPainter \S2.4 is not in scope as the calendar does not
 include a paired-protein dataset.
+Fourth, the broader reference stack under
+\texttt{references/spatial\_omics\_pdfs/} adds platform-benchmark pressure:
+future real-data claims should stratify by assay family, FFPE/frozen handling,
+and tumor section preparation rather than reporting a single pooled metric.
 
 \subsection{Future work}
 
