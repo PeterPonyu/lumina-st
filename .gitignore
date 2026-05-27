@@ -30,3 +30,6 @@ results/
 
 # Local OMX/runtime state
 .omc/
+
+# Generated data fixtures (produced by scripts/data_flow/generate_synthetic_st.py)
+data/
