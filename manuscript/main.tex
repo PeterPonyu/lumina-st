@@ -296,6 +296,38 @@ mechanically; (ii)~first-party split-conformal calibration that produces
 prediction intervals at user-specified $\alpha$; (iii)~a per-transcript
 Binomial thinning sweep that matches the physical noise model.
 
+\subsection{Limitations}
+
+Three limitations of the present manuscript are explicit. First, the
+synthetic-data placeholder used for the held-out gene panel does not
+exercise the compositional imbalance found in real cancer cohorts (e.g.,
+the long-tail distribution of rare cell types in COAD vs OV vs CESC
+slides), so reported recovery numbers should not be read as transfer
+guarantees. Second, the conformal calibration produces coverage
+guarantees that are conditional on exchangeability between calibration
+and test residuals; that exchangeability has been verified for the
+synthetic noise model but graduates to \texttt{paper-ready} only after
+the Day~3 real-data evidence arrives via
+\texttt{docs/DATA\_PREP\_CALENDAR.md}. Third, sub-cluster discovery and
+DEG validation helpers ship in \texttt{lumina\_st.benchmarks.subpopulation}
+but are demonstrated only on synthetic input; the paired-CODEX validation
+described in stPainter \S2.4 is not in scope as the calendar does not
+include a paired-protein dataset.
+
+\subsection{Future work}
+
+The immediate next milestone is the calendar Day~3 cervix Xenium subset
+(see \texttt{docs/DATA\_PREP\_CALENDAR.md}), at which point the
+held-out gene panel recovery moves from synthetic to real evidence and
+the Sankey cluster-mapping composer skeleton at
+\texttt{lumina-st/manuscript/compose\_sankey.py} can be re-driven against
+real cluster identities. Subsequent calendar days unlock the
+foundation-model latent encoder benchmark (Day~4), cross-cancer
+leave-one-context cross-validation (Day~5), and the patch-based
+concordance metric on real coordinates (Day~6). Each transition is
+gated by the claim-ledger update described above; no claim graduates
+without linked evidence.
+
 \section*{Data and code availability}
 
 Source code, tests, and the benchmark contract live in the LuminaST
