@@ -248,7 +248,11 @@ def compute_imputation_metrics(
     if held_out_genes:
         cols = [var_names.index(g) for g in held_out_genes if g in var_names]
         if not cols:
-            cols = list(range(truth.shape[1]))
+            raise ValueError(
+                f"None of the {len(held_out_genes)} requested held_out_genes are present "
+                f"in imputed.var_names; requested={held_out_genes[:5]}..., "
+                f"available={var_names[:5]}..."
+            )
     else:
         cols = list(range(truth.shape[1]))
 

@@ -205,3 +205,50 @@ def test_all_torch_load_calls_use_weights_only() -> None:
                     and kw.value.value is True
                     for kw in node.keywords
                 ), f"{path} has torch.load without weights_only=True"
+
+
+# ---------------------------------------------------------------------------
+# Issue #30 — held-out gene metric silently scored all genes when none present
+# ---------------------------------------------------------------------------
+
+def _make_adata(var_names: list[str]) -> "anndata.AnnData":  # type: ignore[name-defined]
+    import anndata as ad
+    import numpy as np
+    import pandas as pd
+
+    n_cells = 4
+    X = np.ones((n_cells, len(var_names)), dtype=np.float32)
+    return ad.AnnData(X=X, var=pd.DataFrame(index=var_names))
+
+
+def test_issue30_held_out_genes_not_present_raises_valueerror() -> None:
+    """Reproducer from issue #30: no requested gene is in var_names → must raise."""
+    import numpy as np
+    from lumina_st.benchmarks.contract import compute_imputation_metrics
+
+    imputed = _make_adata(["A", "B"])
+    truth = np.ones((4, 2), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="held_out_genes"):
+        compute_imputation_metrics(
+            truth=truth,
+            imputed=imputed,
+            held_out_genes=["X", "Y"],  # neither present
+        )
+
+
+def test_issue30_held_out_genes_subset_scores_only_that_gene() -> None:
+    """Positive case: held_out_genes=['A'] with var_names=['A','B'] scores only A."""
+    import numpy as np
+    from lumina_st.benchmarks.contract import compute_imputation_metrics
+
+    imputed = _make_adata(["A", "B"])
+    truth = np.ones((4, 2), dtype=np.float32)
+
+    metrics = compute_imputation_metrics(
+        truth=truth,
+        imputed=imputed,
+        held_out_genes=["A"],
+    )
+
+    assert metrics["n_genes_scored"] == 1
