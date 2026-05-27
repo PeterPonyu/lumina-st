@@ -14,14 +14,15 @@ Do not treat these outputs as biologically superior or analysis-ready until the 
 
 The name evokes a "light" (lumen) for examining weak or sparse spatial measurements. The current package is a benchmark-controlled implementation surface, not yet evidence for broad biological improvement.
 
-## Installation (Planned)
+## Installation
+
+This research package is not published on PyPI yet. Install from a clone or a GitHub branch/commit:
 
 ```bash
-pip install lumina-st
-# or for development
-git clone https://github.com/<your-org>/lumina-st
+git clone https://github.com/PeterPonyu/lumina-st
 cd lumina-st
 pip install -e ".[dev,scvi]"
+# or: pip install "git+https://github.com/PeterPonyu/lumina-st.git"
 ```
 
 ## Quick Start (Target API)
@@ -33,12 +34,12 @@ import scanpy as sc
 
 cfg = LuminaSTConfig(
     latent_dim=50,
-    cancer_type="COAD",           # or list for pan-cancer
+    cancer_types=["COAD"],
+    seed=42,
     guidance_scale=3.0,
-    checkpoint="checkpoints/lumina_50.ckpt"
 )
 
-imputer = LuminaImputer(cfg)
+imputer = LuminaImputer.from_config(cfg)
 st_slice = sc.read_h5ad("my_xenium_coad.h5ad")
 
 enhanced = imputer.enhance(st_slice)          # returns AnnData with .obsm['latent_enhanced'], .layers['imputed']

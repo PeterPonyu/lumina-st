@@ -21,8 +21,8 @@ from matplotlib import patches
 from matplotlib.path import Path as MplPath
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUT = ROOT / "lumina-st" / "results" / "figures" / "lumina_composed_main_claim.png"
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUT = ROOT / "results" / "figures" / "lumina_composed_main_claim.png"
 PALETTE = {
     "ink": "#243042",
     "muted": "#667085",
@@ -49,15 +49,15 @@ def _load_json(path: Path) -> tuple[dict[str, Any] | list[Any] | None, str]:
 
 def _metric_sources() -> dict[str, Any]:
     sweep_paths = [
-        ROOT / "lumina-st" / "results" / "benchmark" / "lumina_sweep_latest.json",
+        ROOT / "results" / "benchmark" / "lumina_sweep_latest.json",
         ROOT / "results" / "paper_metrics" / "L-F2_metrics_stub.json",
     ]
     biology_paths = [
-        ROOT / "lumina-st" / "results" / "biology" / "biology_validation_latest.json",
+        ROOT / "results" / "biology" / "biology_validation_latest.json",
         ROOT / "benchmark_contracts" / "luminast_biology_validation.json",
     ]
     calibration_paths = [
-        ROOT / "lumina-st" / "results" / "benchmark" / "uncertainty_calibration_latest.json",
+        ROOT / "results" / "benchmark" / "uncertainty_calibration_latest.json",
         ROOT / "benchmark_contracts" / "luminast_uncertainty_calibration.json",
     ]
     out: dict[str, Any] = {"loaded": [], "fallback": []}
@@ -70,7 +70,7 @@ def _metric_sources() -> dict[str, Any]:
                 break
         out[key] = value
         out[f"{key}_source"] = source
-        if source.startswith("loaded:lumina-st/results"):
+        if source.startswith("loaded:results"):
             out["loaded"].append(key)
         else:
             out["fallback"].append(key)
@@ -133,7 +133,7 @@ def _draw_performance(ax: plt.Axes, sources: dict[str, Any]) -> None:
     ax.grid(axis="y", color=PALETTE["grid"], lw=0.8)
     ax.legend(frameon=False, fontsize=7, loc="upper left")
     ax.annotate("↑", xy=(3.45, 0.9), fontsize=14, color=PALETTE["green"], fontweight="bold")
-    _stamp(ax, sources["sweep_source"], warning=not str(sources["sweep_source"]).startswith("loaded:lumina-st/results"))
+    _stamp(ax, sources["sweep_source"], warning=not str(sources["sweep_source"]).startswith("loaded:results"))
 
 
 def _draw_sparsity(ax: plt.Axes, sources: dict[str, Any]) -> None:
@@ -204,7 +204,7 @@ def _draw_biology(ax: plt.Axes, sources: dict[str, Any]) -> None:
     ax.set_yticks(range(len(checks)), [c.replace("_", "\n") for c in checks], fontsize=7)
     ax.invert_yaxis()
     ax.grid(color=PALETTE["grid"], lw=0.8)
-    _stamp(ax, sources["biology_source"], warning=not str(sources["biology_source"]).startswith("loaded:lumina-st/results"))
+    _stamp(ax, sources["biology_source"], warning=not str(sources["biology_source"]).startswith("loaded:results"))
 
 
 def _draw_calibration(ax: plt.Axes, sources: dict[str, Any]) -> None:
@@ -222,7 +222,7 @@ def _draw_calibration(ax: plt.Axes, sources: dict[str, Any]) -> None:
     ax.grid(color=PALETTE["grid"], lw=0.8)
     ax.legend(frameon=False, fontsize=7, loc="lower right")
     ax.text(0.51, 0.91, "ECE ↓ 0.035", fontsize=9, fontweight="bold", color=PALETTE["green"])
-    _stamp(ax, sources["calibration_source"], warning=not str(sources["calibration_source"]).startswith("loaded:lumina-st/results"))
+    _stamp(ax, sources["calibration_source"], warning=not str(sources["calibration_source"]).startswith("loaded:results"))
 
 
 def _draw_provenance(ax: plt.Axes, sources: dict[str, Any]) -> None:

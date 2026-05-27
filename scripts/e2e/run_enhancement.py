@@ -21,7 +21,7 @@ from lumina_st.core.lumina_imputer import LuminaImputer
 
 
 def main(args):
-    ckpt = torch.load(args.checkpoint, map_location="cpu")
+    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
     cfg = LuminaSTConfig(**ckpt.get("config", {}))
 
     # Rebuild model

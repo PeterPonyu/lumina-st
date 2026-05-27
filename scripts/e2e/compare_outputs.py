@@ -3,21 +3,30 @@ import os
 import sys
 import torch
 import numpy as np
-import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 from pathlib import Path
 from torch.utils.data import DataLoader
 
-# Set up PYTHONPATH for baseline imports
-sys.path.insert(0, str(Path("baselines/stPainter-original").resolve()))
-
-from scvi.module import VAE
-from src.models import GiT
-from src.modules import DiffusionModule, VAEModule
-from src.data import STDataset
-
 from lumina_st.core.lumina_imputer import LuminaImputer
+
+
+def _load_baseline_symbols():
+    """Load optional frozen stPainter audit clone dependencies lazily."""
+    baseline_root = Path("baselines/stPainter-original").resolve()
+    if not baseline_root.exists():
+        raise SystemExit(
+            "compare_outputs.py requires the optional frozen baseline clone at "
+            "baselines/stPainter-original; it is not vendored in the standalone "
+            "lumina-st package."
+        )
+    sys.path.insert(0, str(baseline_root))
+    from scvi.module import VAE
+    from src.data import STDataset
+    from src.models import GiT
+    from src.modules import DiffusionModule, VAEModule
+
+    return VAE, GiT, DiffusionModule, VAEModule, STDataset
 
 def compute_metrics(x_true, x_pred):
     # Compute MAE, MSE, Pearson and Spearman correlation
@@ -44,6 +53,7 @@ def compute_metrics(x_true, x_pred):
     return {"mae": mae, "mse": mse, "pearson": pearson, "spearman": spearman}
 
 def main():
+    VAE, GiT, DiffusionModule, VAEModule, STDataset = _load_baseline_symbols()
     print("=== Spatial Omics Reform: Output Comparison Audit ===")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -51,7 +61,7 @@ def main():
     # 1. Paths
     vae_path = "data/baselines/stpainter/checkpoint/vae_50.ckpt"
     diff_path = "data/baselines/stpainter/checkpoint/diffusion_50.ckpt"
-    registry_path = "lumina-st/configs/stpainter_registry.yaml"
+    registry_path = "configs/stpainter_registry.yaml"
     data_path = "data/baselines/stpainter/processed_data/st_CESC_test.h5ad"
     sparsity_path = "data/baselines/stpainter/processed_data/gene_sparsity_ratio.csv"
     
@@ -231,10 +241,10 @@ def main():
         x_metrics = compute_metrics(X_imputed_base, X)
         
         print(f"\nConfiguration: {name}")
-        print(f"  Latent Space metrics vs Baseline:")
+        print("  Latent Space metrics vs Baseline:")
         print(f"    MAE: {z_metrics['mae']:.6f} | MSE: {z_metrics['mse']:.6e}")
         print(f"    Pearson: {z_metrics['pearson']:.6f} | Spearman: {z_metrics['spearman']:.6f}")
-        print(f"  Imputed Genes metrics vs Baseline:")
+        print("  Imputed Genes metrics vs Baseline:")
         print(f"    MAE: {x_metrics['mae']:.6f} | MSE: {x_metrics['mse']:.6e}")
         print(f"    Pearson: {x_metrics['pearson']:.6f} | Spearman: {x_metrics['spearman']:.6f}")
         
@@ -300,4 +310,10 @@ def main():
     print("--- Audit Completed Successfully ---")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as exc:
+        if isinstance(exc.code, str):
+            print(exc.code)
+            raise SystemExit(2) from exc
+        raise
