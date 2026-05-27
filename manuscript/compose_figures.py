@@ -121,16 +121,16 @@ def compose_heldout(synthetic_smoke: dict, out_path: Path, source_path: Path, da
             v = methods[m].get("metrics", {}).get(mk, float("nan"))
             vals.append(float(v) if v is not None else float("nan"))
             labels.append(m)
-        finite = [(l, v) for l, v in zip(labels, vals) if not math.isnan(v)]
+        finite = [(lbl, v) for lbl, v in zip(labels, vals) if not math.isnan(v)]
         if not finite:
             ax.text(0.5, 0.5, "no available results",
                     transform=ax.transAxes, ha="center", va="center")
         else:
             xs = np.arange(len(finite))
-            colors = palette_for([l for l, _ in finite])
+            colors = palette_for([lbl for lbl, _ in finite])
             bars = ax.bar(xs, [v for _, v in finite], color=colors, alpha=0.9)
             ax.set_xticks(xs)
-            ax.set_xticklabels([l for l, _ in finite], rotation=30, ha="right")
+            ax.set_xticklabels([lbl for lbl, _ in finite], rotation=30, ha="right")
             ax.set_ylabel(mlabel)
             for b, v in zip(bars, [v for _, v in finite]):
                 ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
@@ -194,8 +194,7 @@ def compose_heldout(synthetic_smoke: dict, out_path: Path, source_path: Path, da
 
 def compose_sparsity(sparsity_sweep: dict, out_path: Path, source_path: Path, data_card_id: str | None = None) -> None:
     rows = sparsity_sweep["rows"]
-    # Aggregate by (method, fraction)
-    fractions = sorted({r["fraction"] for r in rows})
+    # Aggregate by method (fractions are read directly from rows below).
     methods = sorted({r["method"] for r in rows})
 
     fig = plt.figure(figsize=(11, 4.2), constrained_layout=True)
