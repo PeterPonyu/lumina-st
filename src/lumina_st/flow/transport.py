@@ -16,21 +16,27 @@ will use is intentionally small:
     transport = create_flow_transport(path="linear", prediction="velocity")
     sampler   = FlowSampler(transport)
     losses    = transport.training_losses(model, x1, model_kwargs)
-    x_gen     = sampler.sample_ode(model, shape, ...)
+    x_gen     = sampler.sample_ode(model, shape=(batch, latent_dim), ...)
+
+Note:
+    ``sample_ode`` integrates the drift returned by the model/transport. For
+    classifier-free guidance, pass a model wrapper or closure that already
+    applies guidance; the ``cfg_scale`` argument is retained for backwards
+    compatibility and is not applied internally.
 """
 
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Literal, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
 from .path import InterpolationPath, get_path
-from .integrators import ode, sde
-from .utils import expand_time_like_data, mean_flat
+from .integrators import ode
+from .utils import mean_flat
 
 
 class PredictionTarget(str, enum.Enum):
@@ -103,11 +109,21 @@ class FlowTransport:
     # ------------------------------------------------------------------
     # Drift / score functions for sampling
     # ------------------------------------------------------------------
+    def prediction_to_velocity(
+        self, pred: torch.Tensor, x: torch.Tensor, t: torch.Tensor
+    ) -> torch.Tensor:
+        """Convert the configured model prediction target into an ODE velocity."""
+        if self.prediction == PredictionTarget.VELOCITY:
+            return pred
+        if self.prediction == PredictionTarget.NOISE:
+            return self.path.noise_to_velocity(pred, x, t)
+        return self.path.score_to_velocity(pred, x, t)
+
     def get_drift(self, model: nn.Module, **model_kwargs) -> Callable:
         """Return a callable (x, t) -> velocity that the integrators can use."""
         def drift(x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-            t = expand_time_like_data(t, x)
-            return model(x, t, **model_kwargs)
+            pred = model(x, t, **model_kwargs)
+            return self.prediction_to_velocity(pred, x, t)
         return drift
 
     # ------------------------------------------------------------------
@@ -141,8 +157,9 @@ class FlowTransport:
         return xt, x0
 
     def get_velocity(self, model: nn.Module, x: torch.Tensor, t: torch.Tensor, **model_kwargs) -> torch.Tensor:
-        """Convenience: get model velocity prediction."""
-        return model(x, t, **model_kwargs)
+        """Convenience: get model output converted to a velocity prediction."""
+        pred = model(x, t, **model_kwargs)
+        return self.prediction_to_velocity(pred, x, t)
 
 
 @dataclass
@@ -165,7 +182,13 @@ class FlowSampler:
         model_kwargs: Optional[Dict[str, Any]] = None,
         t_forward: Optional[float] = None,
     ) -> torch.Tensor:
-        """Integrate the probability-flow ODE from noise to data."""
+        """Integrate the probability-flow ODE from noise to data.
+
+        ``shape`` is required for meaningful sampling; if omitted, a tiny
+        placeholder shape is used only for backwards-compatible smoke tests.
+        Classifier-free guidance is not applied by this helper itself; callers
+        should pass a guided drift/model wrapper when ``cfg_scale`` is needed.
+        """
         model = model or self.model
         assert model is not None, "No model provided to sampler"
 

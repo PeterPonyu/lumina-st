@@ -185,24 +185,43 @@ class LuminaImputer:
         uncond_class: str = "correct",
         sparsity_style: str = "gene",
         held_out_genes: Optional[list] = None,
+        seed: Optional[int] = None,
     ) -> ad.AnnData:
         """
         Full guided enhancement / imputation pipeline.
 
-        Returns a copy of the input AnnData with:
-            - .layers['imputed']          : enhanced gene expression
-            - .obsm['latent_enhanced']    : improved latent embedding
-            - .obsm['latent_observed']    : original encoded latent (for comparison)
+        Args:
+            st_adata: Spatial transcriptomics AnnData input. The method returns
+                a copy and does not mutate this object.
+            cancer_type: Optional cancer label. If omitted, ``.obs["cancer_type"]``
+                is used when present, otherwise the first configured cancer type
+                or ``"UNKNOWN"`` is used. Unknown labels map to the registry's
+                in-range ``UNKNOWN`` token when available.
+            layer: Optional AnnData layer name to enhance. Defaults to ``X``.
+            ode_style: ``"correct"`` integrates from ``t_forward`` to 1.0.
+                ``"baseline"`` is bug-compatibility only and integrates from
+                0.0; do not use it for new results.
+            uncond_class: ``"correct"`` uses the CFG null class token.
+                ``"baseline"`` is bug-compatibility only and uses class index 0
+                as the unconditional branch; do not use it for new results.
+            sparsity_style: ``"gene"`` applies per-gene sparsity when a sparsity
+                ratio file is configured; any other value uses a per-cell
+                percentile threshold. This changes downstream scoring semantics.
+            held_out_genes: Optional gene names to zero before encoding for
+                held-out gene recovery benchmarks. Compare imputed values at
+                these columns against the original observations.
+            seed: Optional inference seed. Defaults to ``config.seed`` so
+                repeated enhancement calls are reproducible.
 
-        If ``held_out_genes`` is provided, those gene columns are zeroed in the
-        input expression matrix **before** the encoder sees them. This supports
-        held-out gene recovery benchmarks: pass a list of gene names, then
-        compare the imputed values at those columns against the original
-        observations to score how well the model recovers masked signal.
+        Returns:
+            A copy of the input AnnData with ``layers['imputed']`` (or
+            ``layers['imputed_latent']`` for latent-only outputs),
+            ``obsm['latent_enhanced']``, and ``obsm['latent_observed']``.
         """
         import numpy as np
 
         cfg = self.config
+        pl.seed_everything(cfg.seed if seed is None else seed, workers=True)
         adata = st_adata.copy()
 
         # 1. Determine cancer label
@@ -280,6 +299,7 @@ class LuminaImputer:
             y,
             ode_style=ode_style,
             uncond_class=uncond_class,
+            seed=cfg.seed if seed is None else seed,
         )
 
         # 5. Decode back (if VAE present)
