@@ -43,16 +43,42 @@ class EnhancementEvaluator:
             "mean_spearman": float(np.nanmean(s)),
         }
 
-    def run_clustering_metrics(self, latent_key: str = "latent_enhanced", n_neighbors: int = 15) -> Dict[str, float]:
-        """Clustering quality on the enhanced latent vs original."""
+    def run_clustering_metrics(
+        self,
+        latent_key: str = "latent_enhanced",
+        baseline_latent_key: str = "latent_observed",
+        n_neighbors: int = 15,
+    ) -> Dict[str, float]:
+        """Clustering quality on the enhanced latent vs an independent baseline.
+
+        Builds the baseline Leiden partition from a SEPARATE neighbor graph
+        (``baseline_latent_key`` in ``.obsm`` if present, else PCA of ``.X``)
+        so the comparison against ``leiden_enhanced`` reflects real partition
+        change. The previous implementation built one graph from
+        ``latent_enhanced`` and ran Leiden on it twice, which forced
+        ARI/NMI ≡ 1.0 by construction (lumina-st #132).
+        """
         import scanpy as sc
 
-        # Leiden on enhanced latent
+        # Baseline Leiden on an INDEPENDENT graph (observed latent or raw .X PCA).
+        # Skip if the caller already supplied a 'leiden' label column.
+        if "leiden" not in self.adata.obs:
+            if baseline_latent_key in self.adata.obsm:
+                sc.pp.neighbors(
+                    self.adata, use_rep=baseline_latent_key, n_neighbors=n_neighbors
+                )
+            else:
+                # Fall back to PCA of raw .X so we still compare against an
+                # independent representation, not the enhanced graph itself.
+                n_comps = min(50, max(self.adata.n_vars - 1, 2))
+                sc.pp.pca(self.adata, n_comps=n_comps)
+                sc.pp.neighbors(self.adata, n_neighbors=n_neighbors)
+            sc.tl.leiden(self.adata, key_added="leiden", resolution=1.0)
+
+        # Enhanced Leiden on the enhanced-latent graph. This overwrites .obsp,
+        # but the baseline labels are already materialized in .obs.
         sc.pp.neighbors(self.adata, use_rep=latent_key, n_neighbors=n_neighbors)
         sc.tl.leiden(self.adata, key_added="leiden_enhanced", resolution=1.0)
-
-        if "leiden" not in self.adata.obs:
-            sc.tl.leiden(self.adata, key_added="leiden", resolution=1.0)
 
         ari = adjusted_rand_score(self.adata.obs["leiden"], self.adata.obs["leiden_enhanced"])
         nmi = normalized_mutual_info_score(self.adata.obs["leiden"], self.adata.obs["leiden_enhanced"])
