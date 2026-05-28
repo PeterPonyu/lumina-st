@@ -37,6 +37,32 @@ def _safe_torch_load(path: str | Path, *, map_location: str = "cpu") -> Any:
     return torch.load(path, map_location=map_location, weights_only=True)
 
 
+def _strict_load_state_dict(module: torch.nn.Module, state_dict: dict) -> None:
+    """Load ``state_dict`` into ``module`` and raise on any key mismatch.
+
+    Previously this module used ``strict=False``, which silently swallowed
+    missing keys and left those parameters at their random init — producing
+    "loaded" checkpoints whose published metrics came from random weights.
+
+    Use ``strict=False`` only to *collect* the mismatch report, then raise a
+    ``RuntimeError`` enumerating the offending key names so the failure is
+    obvious. This is equivalent to ``strict=True`` but with a stable,
+    self-describing error message we control.
+    """
+
+    result = module.load_state_dict(state_dict, strict=False)
+    missing = list(getattr(result, "missing_keys", []))
+    unexpected = list(getattr(result, "unexpected_keys", []))
+    if missing or unexpected:
+        raise RuntimeError(
+            "Checkpoint state_dict does not match the model definition. "
+            "Loading with strict=False would silently leave parameters at "
+            "their random init. Refusing to continue.\n"
+            f"  Missing keys ({len(missing)}): {missing}\n"
+            f"  Unexpected keys ({len(unexpected)}): {unexpected}"
+        )
+
+
 class LuminaImputer:
     """
     Main entry point for LuminaST.
@@ -173,7 +199,7 @@ class LuminaImputer:
             else:
                 clean_state_dict[k] = v
 
-        module.load_state_dict(clean_state_dict, strict=False)
+        _strict_load_state_dict(module, clean_state_dict)
         return cls(config, module)
 
     def enhance(
