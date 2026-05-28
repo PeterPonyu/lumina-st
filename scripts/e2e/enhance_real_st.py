@@ -3,8 +3,8 @@
 Practical End-to-End script for LuminaST enhancement.
 
 If you do **not** have suitable real local ST data yet (common situation), the script
-automatically falls back to high-quality synthetic data that mimics the original
-stPainter baseline examples (pan-cancer reference + noisy target ST slices).
+automatically falls back to high-quality synthetic data that mimics
+a pan-cancer spatial-transcriptomics reference baseline.
 
 Usage with real data (recommended when available):
     conda run -n dl python scripts/e2e/enhance_real_st.py \
@@ -80,9 +80,9 @@ def main(args):
         print("Using user-provided real data files.")
     elif DATA_ROOT.exists() and any((DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")):
         # Accept both folder names — the gdown download yields processed_data/,
-        # while the upstream stPainter README documents processed/.
+        # while the upstream README documents processed/.
         processed = DATA_ROOT / "processed" if (DATA_ROOT / "processed").exists() else DATA_ROOT / "processed_data"
-        print(f"\n[INFO] Found real baseline stPainter data at: {DATA_ROOT}")
+        print(f"\n[INFO] Found real baseline data at: {DATA_ROOT}")
         print(f"       Using {processed.name}/ for E2E run.\n")
         ref_path = processed / "sc_train.h5ad"
         if not ref_path.exists():
@@ -100,7 +100,7 @@ def main(args):
             args.cancer = target_path.stem.replace("st_", "").replace("_test", "")
     else:
         print("\n[INFO] No real data provided and no baseline data found locally.")
-        print("       Falling back to high-fidelity synthetic data (mimics stPainter usage).\n")
+        print("       Falling back to high-fidelity synthetic data (mimics the reference baseline usage).\n")
 
         ref, target, cancer_names = generate_synthetic_reference_and_st(
             n_ref_cells=2500, n_st_cells=500, n_genes=180, n_cancer_types=4, seed=42

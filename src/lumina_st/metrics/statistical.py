@@ -1,7 +1,7 @@
 """Statistical apparatus: permutation null + multiple-testing correction.
 
 Round 12 W006 — covers the statistical machinery referenced (but never
-explicitly named) by stPainter §2.5 DEG analysis. Provides:
+explicitly named) by §2.5 DEG analysis in the baseline reference. Provides:
 
 - `permutation_null`: generic permutation-null builder for any
   stat(x, y) function on two groups.
