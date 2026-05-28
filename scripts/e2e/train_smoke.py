@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 import anndata as ad
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 
 from lumina_st.config.lumina_config import LuminaSTConfig
