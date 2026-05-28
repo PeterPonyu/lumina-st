@@ -32,16 +32,19 @@ from lumina_st import LuminaImputer
 from lumina_st.config import LuminaSTConfig
 import scanpy as sc
 
+st_slice = sc.read_h5ad("my_xenium_coad.h5ad")
+
+# Without a VAE checkpoint, enhance() runs in latent space, so latent_dim
+# must equal the input gene-space width. To enhance gene-space data of a
+# different width, attach a VAE via LuminaImputer.from_checkpoint(...).
 cfg = LuminaSTConfig(
-    latent_dim=50,
+    latent_dim=st_slice.n_vars,
     cancer_types=["COAD"],
     seed=42,
     guidance_scale=3.0,
 )
 
 imputer = LuminaImputer.from_config(cfg)
-st_slice = sc.read_h5ad("my_xenium_coad.h5ad")
-
 enhanced = imputer.enhance(st_slice)          # returns AnnData with .obsm['latent_enhanced'], .layers['imputed']
 ```
 
