@@ -12,12 +12,27 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
 import numpy as np
+import scipy.sparse as sp
 import torch
 from anndata import AnnData
 from torch.utils.data import Dataset
 
 from ..config.lumina_config import LuminaSTConfig
 from .cancer_registry import CancerRegistry
+
+
+def _row_to_dense_array(X: Any, idx: int) -> np.ndarray:
+    """Return ``X[idx]`` as a 1-D dense float ndarray.
+
+    ``AnnData.X`` may be either a dense ``np.ndarray`` or a
+    ``scipy.sparse`` matrix. ``np.asarray`` on a sparse row produces a 0-D
+    object array, so we densify explicitly before casting.
+    """
+
+    row = X[idx]
+    if sp.issparse(row):
+        row = row.toarray()
+    return np.asarray(row).squeeze()
 
 
 class ReferenceAtlasDataset(Dataset):
@@ -51,7 +66,7 @@ class ReferenceAtlasDataset(Dataset):
         return self.adata.n_obs
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        x = torch.from_numpy(np.asarray(self.adata.X[idx]).squeeze()).float()
+        x = torch.from_numpy(_row_to_dense_array(self.adata.X, idx)).float()
         y = torch.tensor(self.cancer_labels[idx], dtype=torch.long)
         return x, y
 
@@ -93,7 +108,7 @@ class SpatialTranscriptomicsDataset(Dataset):
         return self.adata.n_obs
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        x = torch.from_numpy(np.asarray(self.adata.X[idx]).squeeze()).float()
+        x = torch.from_numpy(_row_to_dense_array(self.adata.X, idx)).float()
         y = torch.tensor(self.cancer_labels[idx], dtype=torch.long)
         mask = self.impute_mask
 
