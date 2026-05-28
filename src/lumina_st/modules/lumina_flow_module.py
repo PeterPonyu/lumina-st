@@ -12,7 +12,7 @@ clean, modern LightningModule that:
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch
@@ -101,6 +101,7 @@ class LuminaFlowModule(pl.LightningModule):
         ode_style: str = "correct",
         uncond_class: str = "correct",
         cfg_decay: Optional[str] = None,
+        seed: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Perform guided imputation starting from partially noised latents.
@@ -116,7 +117,11 @@ class LuminaFlowModule(pl.LightningModule):
             uncond_class: Either "correct" (use y_embedder.num_classes) or
                           "baseline" (use index 0, matching the stPainter bug).
             cfg_decay: Guidance decay schedule. None for constant, "linear", or "cosine".
+            seed: Optional local inference seed. When provided, repeated calls are deterministic.
         """
+        if seed is not None:
+            torch.manual_seed(seed)
+
         cfg_scale = cfg_scale if cfg_scale is not None else self.config.guidance_scale
         t_forward = t_forward if t_forward is not None else self.config.t_forward
 
@@ -131,18 +136,28 @@ class LuminaFlowModule(pl.LightningModule):
         z_noisy, _ = self.transport.get_noisy_xt(z, t)
         z_t = z_noisy.clone()
 
-        # 2. Get the null class token (dropout token)
+        # 2. Get the null class token (dropout token). If the checkpoint was
+        # trained without CFG dropout, there is no null row; fall back to the
+        # conditional branch instead of indexing out of range.
+        y_embedder = self.ema_model.y_embedder
         if uncond_class == "baseline":
             null_class = 0
+            has_null_token = True
         else:
-            null_class = getattr(self.ema_model.y_embedder, "num_classes", y.max().item() + 1)
-        null_y = torch.full_like(y, null_class)
+            null_class = getattr(y_embedder, "num_classes", int(y.max().item()) + 1)
+            has_null_token = null_class < y_embedder.embedding_table.num_embeddings
+        use_guidance = cfg_scale != 1.0 and has_null_token
+        null_y = torch.full_like(y, null_class) if use_guidance else y
 
         num_steps = self.config.num_sampling_steps
 
         # Pre-allocate inputs to avoid CPU-GPU synchronization and dynamic memory allocation inside the loop
-        z_in = torch.empty(batch_size * 2, z.shape[1], device=device, dtype=z.dtype)
-        y_in = torch.cat([y, null_y], dim=0)
+        if use_guidance:
+            z_in = torch.empty(batch_size * 2, z.shape[1], device=device, dtype=z.dtype)
+            y_in = torch.cat([y, null_y], dim=0)
+        else:
+            z_in = torch.empty_like(z_t)
+            y_in = y
 
         # 3. Pre-compute the time steps and tile them on the GPU
         if ode_style == "baseline":
@@ -157,9 +172,12 @@ class LuminaFlowModule(pl.LightningModule):
         # 4. ODE Integration Loop
         for step in range(num_steps):
             # Slices/assignments are in-place, avoiding CUDA allocations
-            z_in[:batch_size] = z_t
-            z_in[batch_size:] = z_t
-            t_in = t_in_matrix[step]
+            if use_guidance:
+                z_in[:batch_size] = z_t
+                z_in[batch_size:] = z_t
+            else:
+                z_in.copy_(z_t)
+            t_in = t_in_matrix[step][: z_in.shape[0]]
 
             # Dynamic CFG Schedule (Priority 5)
             if cfg_decay is not None and num_steps > 1:
@@ -175,9 +193,13 @@ class LuminaFlowModule(pl.LightningModule):
                 current_cfg = cfg_scale
 
             out = self.ema_model(z_in, t_in, y_in)
-            v_cond = out[:batch_size]
-            v_uncond = out[batch_size:]
-            v_guided = v_uncond + current_cfg * (v_cond - v_uncond)
+            out = self.transport.prediction_to_velocity(out, z_in, t_in)
+            if use_guidance:
+                v_cond = out[:batch_size]
+                v_uncond = out[batch_size:]
+                v_guided = v_uncond + current_cfg * (v_cond - v_uncond)
+            else:
+                v_guided = out
 
             z_t = z_t + v_guided * dt
 
