@@ -37,6 +37,10 @@ from .utils import expand_time_like_data
 
 PathName = Literal["linear", "gvp", "vp"]
 
+# Per-sample alpha threshold for InterpolationPath.drift. Documented and
+# identical to aether-3d #136 (shared cross-repo fix template).
+EPS_ALPHA = 1e-6
+
 
 class InterpolationPath(ABC):
     """Abstract base class for a probability path p_t(x) = N(mu_t, sigma_t^2)."""
@@ -84,9 +88,16 @@ class InterpolationPath(ABC):
         t = expand_time_like_data(t, x)
         a, da = self.alpha(t)
         s, ds = self.sigma(t)
-        # Standard derivation from the Fokker-Planck of the linear interpolation
-        drift = da / a * x if a.abs().min() > 1e-8 else torch.zeros_like(x)
-        diffusion = da / a * s**2 - s * ds
+        # Standard derivation from the Fokker-Planck of the linear interpolation.
+        # Per-sample mask (shared template with aether-3d #136): a batch-wide
+        # ``a.abs().min() > eps`` reduction would zero the drift for every
+        # sample in the batch as soon as any single sample landed near the
+        # path boundary. ``torch.where`` keeps interior samples intact and
+        # only zeroes the rows whose own alpha is too small.
+        mask = a.abs() > EPS_ALPHA
+        safe_a = torch.where(mask, a, torch.ones_like(a))
+        drift = torch.where(mask, da / safe_a * x, torch.zeros_like(x))
+        diffusion = da / safe_a * s**2 - s * ds
         return -drift, diffusion
 
     def diffusion(self, x: torch.Tensor, t: torch.Tensor, form: str = "constant", norm: float = 1.0) -> torch.Tensor:
