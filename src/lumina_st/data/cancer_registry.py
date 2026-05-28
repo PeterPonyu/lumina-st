@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 import yaml
 
@@ -20,8 +20,10 @@ class CancerRegistry:
 
     def __init__(self, name_to_idx: Dict[str, int]):
         self.name_to_idx = {k.upper(): v for k, v in name_to_idx.items()}
+        if len(set(self.name_to_idx.values())) != len(self.name_to_idx):
+            raise ValueError("CancerRegistry indices must be unique")
         self.idx_to_name = {v: k for k, v in self.name_to_idx.items()}
-        self.num_classes = len(self.name_to_idx)
+        self.num_classes = max(self.idx_to_name, default=-1) + 1
 
     @classmethod
     def from_file(cls, path: Path) -> "CancerRegistry":
@@ -48,13 +50,17 @@ class CancerRegistry:
             "PRAD": 3,
             "NSCLC": 4,
             "CESC": 5,
-            "UNKNOWN": 99,
+            "UNKNOWN": 6,
         }
         return cls(default)
 
     def __getitem__(self, name: str) -> int:
         name = name.upper()
-        return self.name_to_idx.get(name, self.name_to_idx.get("UNKNOWN", 99))
+        if name in self.name_to_idx:
+            return self.name_to_idx[name]
+        if "UNKNOWN" in self.name_to_idx:
+            return self.name_to_idx["UNKNOWN"]
+        raise KeyError(f"Unknown cancer type {name!r} and registry has no UNKNOWN fallback")
 
     def get_name(self, idx: int) -> str:
         return self.idx_to_name.get(idx, "UNKNOWN")
