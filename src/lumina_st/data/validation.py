@@ -22,7 +22,10 @@ class AnnDataSchemaValidator:
             adata: AnnData object to validate.
             required_obs: List of keys required in adata.obs (e.g. ['cancer_type']).
             required_obsm: List of keys required in adata.obsm (e.g. ['spatial']).
-            check_sparsity: If True, checks if adata.X has zero-variance or extreme values.
+            check_sparsity: If True, rejects ``adata.X`` matrices that
+                are ``None``, contain non-finite values (NaN/Inf), or have
+                zero per-gene variance across every gene (e.g. all-zero
+                or all-constant matrices).
             
         Returns:
             True if valid, raises ValueError or returns False otherwise.
@@ -58,7 +61,37 @@ class AnnDataSchemaValidator:
             # Check if empty
             if adata.X is None:
                 raise ValueError("AnnData.X expression matrix is None.")
-                
+
+            # Densify if sparse for the cheap per-matrix checks; ST
+            # matrices in `validate_spatial_data` are user-sized so this
+            # is acceptable (and densification is bounded by the .X the
+            # caller already loaded).
+            X = adata.X
+            X_dense = X.toarray() if hasattr(X, "toarray") else np.asarray(X)
+
+            # Non-finite values (NaN / +-Inf) — the docstring promises
+            # "extreme values"; previously these passed silently and went
+            # straight into the encoder.
+            if not np.all(np.isfinite(X_dense)):
+                raise ValueError(
+                    "AnnData.X contains non-finite values (NaN or Inf); "
+                    "this is rejected when check_sparsity=True."
+                )
+
+            # Zero-variance check — the docstring promises "zero-variance"
+            # rejection. Flag when every gene is constant across cells
+            # (e.g. all-zero or all-same matrices). We check per-gene
+            # rather than global variance so a single non-constant gene
+            # rescues an otherwise-degenerate matrix.
+            if X_dense.shape[0] > 1:
+                per_gene_var = np.var(X_dense, axis=0)
+                if not np.any(per_gene_var > 0):
+                    raise ValueError(
+                        "AnnData.X has zero per-gene variance across all genes "
+                        "(every column is constant); this is rejected when "
+                        "check_sparsity=True."
+                    )
+
         logger.info("Spatial Transcriptomics dataset schema validation passed.")
         return True
 
