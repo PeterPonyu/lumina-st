@@ -94,7 +94,7 @@ class LuminaImputer:
         ckpt = _safe_torch_load(checkpoint_path, map_location="cpu")
         hparams = ckpt.get("hyper_parameters", {})
 
-        # Map baseline stPainter hyperparams to LuminaSTConfig fields
+        # Map legacy checkpoint hyperparams to LuminaSTConfig fields
         latent_dim = hparams.get("latent_size", 50)
         hidden_size = hparams.get("hidden_size_sit", 256)
         depth = hparams.get("depth", 8)

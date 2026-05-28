@@ -1,7 +1,7 @@
 """Sankey / alluvial composer skeleton for cluster-mapping figures.
 
-Round 13 W005 — closes the stPainter §2.3 (Sankey cluster mapping)
-composer skeleton gap. The composer is data-format-agnostic: it accepts
+Round 13 W005 — closes the §2.3 cluster-mapping content gap (see scaffold audit).
+The composer skeleton gap is addressed here: The composer is data-format-agnostic: it accepts
 a contingency dict ``{truth_label: {pred_label: count}}`` and renders
 an alluvial flow between truth labels (left) and predicted labels (right).
 
