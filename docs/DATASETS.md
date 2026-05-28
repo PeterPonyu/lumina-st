@@ -63,6 +63,44 @@ guessed hotlink not confirmed).
 **Suggested first-pull order (registry):** HEST-1k → 1 Visium HD → 1 Xenium. Total
 network ≈ 12–20 GB.
 
+## Extended validation datasets
+
+> Added 2026-05-28 after an independent **raw-integer-count re-verification** of every
+> dataset above (web checks against the 10x dataset pages, the Zenodo API, and the HEST
+> paper/HF card). Tracking issues #54–#60 carry the per-dataset evidence comments;
+> expansion issues #62–#64 are below. All download URLs returned **HTTP 200** on 2026-05-28.
+
+### Raw-count verification verdicts (existing datasets)
+
+| # | Dataset | Issue | Verdict | Raw-count artifact (verified) |
+|---|---------|-------|---------|-------------------------------|
+| 1 | HEST-1k | #54 | ✅ CONFIRMED | `st/*.h5ad` — raw transcript counts in `.X` + (x,y) coords (HEST paper, [arXiv 2406.16192](https://arxiv.org/abs/2406.16192)). |
+| 2 | her2st | #55 | ✅ CONFIRMED | `count-matrices.zip` (37.24 MB) — integer `[n_spots]×[n_genes]` `.tsv.gz` per section ([Zenodo 3957257](https://zenodo.org/records/3957257)). |
+| 3 | Visium HD CRC | #56 | ✅ CONFIRMED | `Visium_HD_Human_Colon_Cancer_binned_outputs.tar.gz` (**15.9 GB**) → `square_008um/filtered_feature_bc_matrix.h5` raw UMIs. Resolves UNVERIFIED caveat #1. |
+| 4 | Visium HD Mouse Brain | #57 | ✅ CONFIRMED | `Visium_HD_Mouse_Brain_binned_outputs.tar.gz` (**4.6 GB**) → `square_008um/filtered_feature_bc_matrix.h5`. |
+| 5 | Visium HD Tonsil | #58 | ✅ CONFIRMED | `Visium_HD_Human_Tonsil_Fresh_Frozen_binned_outputs.tar.gz` (**17.4 GB**) → `square_008um/filtered_feature_bc_matrix.h5`. *(registry "2–4 GB" estimate is far too low.)* |
+| 9 | Xenium Human Skin | #59 | ⚠️ PARTIAL | raw `cell_feature_matrix.h5` inside `…_outs.zip` (11.8 GB) is fine, **but the issue/registry page link 404s** — correct page adds the `-1-standard` suffix; the public sample is *non-diseased* skin (→ `UNKNOWN`). |
+| 11 | Xenium Breast (Janesick) | #60 | ✅ CONFIRMED | `Xenium_FFPE_Human_Breast_Cancer_Rep1_cell_feature_matrix.h5` (12 MB) raw per-cell counts (full `_outs.zip` 9.86 GB). |
+
+**Net:** 6/7 ✅ raw counts confirmed; 1 ⚠️ (#59 Xenium Skin) needs only a **link correction** to
+`…/datasets/human-skin-data-xenium-human-multi-tissue-and-cancer-panel-1-standard` — no replacement
+dataset required. No dataset failed (no ❌).
+
+### New expansion datasets (verified raw counts)
+
+Three additional raw-count, single-slice, histology-paired targets that close validation
+gaps for LuminaST's latent-enhancement / guided-imputation method:
+
+| Dataset | Issue | Platform | Tissue | Raw-count artifact (HTTP 200) | Why it fits LuminaST |
+|---------|-------|----------|--------|-------------------------------|----------------------|
+| DLPFC 12-sample Visium (Maynard 2021 / spatialLIBD) | #62 | Visium v1 | human DLPFC (brain) | `SpatialExperiment` `counts` assay = raw integer UMIs (`spatialLIBD::fetch_data("spe")`) + manual L1–L6+WM labels | **Gold-standard imputation benchmark**: expert layer labels → layer-ARI / held-out-gene scoring; serial replicates → enhancement-consistency checks. |
+| Visium CytAssist FFPE Human Breast Cancer | #63 | Visium CytAssist (FFPE) | breast cancer | `CytAssist_FFPE_Human_Breast_Cancer_filtered_feature_bc_matrix.h5` (33 MB) | Low-friction single-`.h5` breast Visium slice → cross-platform breast (legacy ST ↔ Visium ↔ Xenium). `BRCA`. |
+| Visium HD Human Breast Cancer (FFPE, IF) | #64 | Visium HD (8 µm) | breast cancer | `Visium_HD_Human_Breast_Cancer_FFPE_binned_outputs.tar.gz` (6.75 GB) → `square_008um/filtered_feature_bc_matrix.h5` | Same-tissue **multi-resolution** breast (HD ↔ Visium ↔ Xenium ↔ legacy ST); near-single-cell HD enhancement. `BRCA`. |
+
+The canonical [`DATASET_REGISTRY.md`](../../../datasets/DATASET_REGISTRY.md) still governs
+accessions; the tables above record the 2026-05-28 raw-count re-verification and the focused
+expansion set.
+
 ## Local resources
 
 - **Canonical dataset registry (source of truth):**
