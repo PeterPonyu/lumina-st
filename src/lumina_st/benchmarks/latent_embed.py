@@ -1,6 +1,6 @@
 """Latent embedding helpers for visualization (UMAP / PCA fallback).
 
-Round 13 W003 — closes the stPainter §2.4 (latent-driven UMAP) helper
+Round 13 W003 — closes the §2.4 content gap (latent-driven UMAP) helper
 gap that R12 mislabeled gap-D. UMAP/PCA over a latent matrix is a pure
 function and deterministic given a seed; the on-real-data figure waits
 for Day 5+, but the helper does not.
