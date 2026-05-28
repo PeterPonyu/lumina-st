@@ -13,6 +13,10 @@ from lumina_st.core.lumina_imputer import LuminaImputer
 
 def _load_baseline_symbols():
     """Load optional frozen baseline audit-clone dependencies lazily."""
+    # The literal "stPainter-original" segment below names the on-disk path of
+    # the frozen baseline audit tree (an allowed brand-mention context — see
+    # docs policy). The surrounding prose is kept neutral so the user-visible
+    # precondition error reads as a path notice, not a brand framing.
     baseline_root = Path("baselines/stPainter-original").resolve()
     if not baseline_root.exists():
         raise SystemExit(
