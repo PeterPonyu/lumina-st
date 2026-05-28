@@ -88,8 +88,14 @@ class LuminaSTConfig(BaseModel):
     atol: float = 1e-5
     rtol: float = 1e-5
 
-    # Sparsity post-processing (important for realistic gene counts)
-    apply_sparsity: bool = True
+    # Sparsity post-processing (important for realistic gene counts).
+    # Default is OFF (#142): the per-cell 95th-percentile fallback was
+    # zeroing the bottom ~95% of every cell's imputation BEFORE held-out
+    # gene Pearson was scored, so default benchmark numbers measured the
+    # sparsifier, not the model. Callers who need sparsity matching must
+    # opt in explicitly and document which sparsity mode produced each
+    # reported metric.
+    apply_sparsity: bool = False
     sparsity_percentile: float = 0.95
 
     # ------------------------------------------------------------------
