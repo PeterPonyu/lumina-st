@@ -1,9 +1,8 @@
 """
 LuminaTransformer — the core velocity prediction network for LuminaST.
 
-This is a fresh, renamed re-implementation of the DiT-style architecture
-originally called "GiT" in the stPainter baseline. All identifiers, docstrings,
-and structure have been rewritten for the LuminaST brand.
+This is a DiT-style architecture for the LuminaST latent diffusion pipeline.
+All identifiers and docstrings follow LuminaST conventions.
 
 Key features:
 - Patch embedding of latent vectors
@@ -73,7 +72,7 @@ class LuminaTransformer(nn.Module):
     """
     The main velocity / noise / score prediction network for LuminaST.
 
-    Replaces the original "GiT" for the latent diffusion case.
+    Core velocity / score prediction network for LuminaST's latent diffusion pipeline.
     """
 
     def __init__(

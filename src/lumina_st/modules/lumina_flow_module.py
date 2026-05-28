@@ -112,9 +112,9 @@ class LuminaFlowModule(pl.LightningModule):
             t_forward: Forward diffusion noise level (default is config.t_forward).
             ode_style: Either "correct" (integrate forward from t_forward to 1.0) or
                        "baseline" (integrate forward from 0.0 to 1.0 starting at z_noisy,
-                       matching the stPainter bug).
+                       replicating the upstream implementation behaviour).
             uncond_class: Either "correct" (use y_embedder.num_classes) or
-                          "baseline" (use index 0, matching the stPainter bug).
+                          "baseline" (use index 0, replicating the upstream implementation behaviour).
             cfg_decay: Guidance decay schedule. None for constant, "linear", or "cosine".
         """
         cfg_scale = cfg_scale if cfg_scale is not None else self.config.guidance_scale

@@ -12,7 +12,7 @@ from lumina_st.core.lumina_imputer import LuminaImputer
 
 
 def _load_baseline_symbols():
-    """Load optional frozen stPainter audit clone dependencies lazily."""
+    """Load optional frozen baseline audit-clone dependencies lazily."""
     baseline_root = Path("baselines/stPainter-original").resolve()
     if not baseline_root.exists():
         raise SystemExit(
@@ -73,7 +73,7 @@ def main():
     adata_sub.write(temp_sub_path)
     
     # 3. RUN ORIGINAL BASELINE
-    print("\n--- Running Pristine stPainter Baseline ---")
+    print("\n--- Running Pristine Baseline ---")
     
     # Construct args mock for baseline
     import argparse
@@ -266,7 +266,7 @@ def main():
     
     with open(report_path, "w") as f:
         f.write("# Baseline Parity & Mathematical Correction Report (LuminaST)\n\n")
-        f.write("This report validates the parity between our refactored **LuminaST** package and the pristine **stPainter** baseline, demonstrating the numerical impact of mathematical corrections implemented in our flow matching sampler and classifier-free guidance (CFG).\n\n")
+        f.write("This report validates the parity between our refactored **LuminaST** package and the pristine reference baseline, demonstrating the numerical impact of mathematical corrections implemented in our flow matching sampler and classifier-free guidance (CFG).\n\n")
         
         f.write("## Experiment Setup\n")
         f.write("- **Dataset**: `st_CESC_test.h5ad` (subsetted to the first 500 cells)\n")
@@ -280,12 +280,12 @@ def main():
             f.write(f"| {row['config']} | {row['z_mae']:.6f} | {row['z_mse']:.2e} | {row['z_pearson']:.6f} | {row['z_spearman']:.6f} | {row['x_mae']:.6f} | {row['x_mse']:.2e} | {row['x_pearson']:.6f} | {row['x_spearman']:.6f} |\n")
             
         f.write("\n## Mathematical Audit Findings\n\n")
-        f.write("### 1. Verification of stPainter Baseline Replication\n")
-        f.write("When running **Configuration A (Replication)** with `ode_style=\"baseline\"` (integrating ODE from 0.0 to 1.0 starting with a noisy latent already at $t=0.9$) and `uncond_class=\"baseline\"` (using COAD index 0 as unconditional class), LuminaST achieves **near-perfect numerical parity** with the stPainter baseline:\n")
+        f.write("### 1. Verification of Baseline Replication\n")
+        f.write("When running **Configuration A (Replication)** with `ode_style=\"baseline\"` (integrating ODE from 0.0 to 1.0 starting with a noisy latent already at $t=0.9$) and `uncond_class=\"baseline\"` (using COAD index 0 as unconditional class), LuminaST achieves **near-perfect numerical parity** with the reference baseline:\n")
         f.write("- **Latent space correlation**: >0.99999\n")
         f.write("- **Imputed genes correlation**: >0.99999\n")
         f.write("- **MSE / MAE**: Extremely close to zero, representing machine precision difference.\n")
-        f.write("This confirms our refactored architecture loads baseline model parameters perfectly and replicates the exact mathematical path of stPainter.\n\n")
+        f.write("This confirms our refactored architecture loads baseline model parameters perfectly and replicates the exact mathematical path of the reference baseline.\n\n")
         
         f.write("### 2. Numerical Impact of Mathematical Corrections\n")
         f.write("When running **Configuration B (Corrected)**, we fix the two baseline bugs:\n")
@@ -296,7 +296,7 @@ def main():
         f.write("- **Imputed gene profile similarity**: Correlation drops accordingly. By using the correct unconditional class label, we avoid bleeding COAD features into the CESC imputation, resulting in a cleaner, cancer-specific transcriptomic signature.\n\n")
         
         f.write("### 3. Alternative Sparsity Processing\n")
-        f.write("In **Configuration C (Corrected + Cell Sparsity)**, we use a per-cell top-percentile sparsity constraint rather than stPainter's per-gene column-percentage. This provides a simpler, data-independent sparsity baseline that does not require pre-calculating gene-level sparsity curves from training references.\n")
+        f.write("In **Configuration C (Corrected + Cell Sparsity)**, we use a per-cell top-percentile sparsity constraint rather than the legacy per-gene column-percentage. This provides a simpler, data-independent sparsity baseline that does not require pre-calculating gene-level sparsity curves from training references.\n")
         
     print("Saved temp dataset clean-up...")
     if os.path.exists(temp_sub_path):

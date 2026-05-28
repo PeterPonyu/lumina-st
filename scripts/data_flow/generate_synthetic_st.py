@@ -2,7 +2,7 @@
 """
 High-fidelity Synthetic Data Generator for LuminaST (Data Flow + E2E)
 
-Generates realistic-looking count data that mimics what stPainter used:
+Generates realistic-looking count data that mimics a realistic pan-cancer ST reference atlas:
 - Pan-cancer scRNA reference atlas with differential gene programs per "cancer type"
 - Target ST slices with realistic dropout/sparsity (the imputation problem)
 - Gene names and proper AnnData structure
@@ -33,7 +33,7 @@ def generate_synthetic_reference_and_st(
     """
     Returns (ref_adata, st_adata, cancer_names)
 
-    Characteristics designed to match baseline stPainter usage:
+    Characteristics designed for realistic spatial-transcriptomics baselines:
     - Reference: scRNA-like, multiple "cancer types" with distinct marker genes
     - Target: higher technical noise + dropout (the problem LuminaST solves)
     - Both have .obs['cancer_type'] and gene names
@@ -117,7 +117,7 @@ def generate_synthetic_reference_and_st(
 
 if __name__ == "__main__":
     ref, st, names = generate_synthetic_reference_and_st()
-    print("Generated high-fidelity synthetic data (mimics stPainter usage):")
+    print("Generated high-fidelity synthetic data (mimics a reference baseline):")
     print(f"  Reference atlas: {ref.n_obs} cells, {ref.n_vars} genes, {len(names)} cancer types")
     print(f"  Target ST      : {st.n_obs} cells, sparsity ~{(st.X == 0).mean():.1%}")
     print(f"  Cancer types   : {names}")

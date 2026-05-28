@@ -48,7 +48,7 @@ def main(args):
     if DATA_ROOT.exists() and any(
         (DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")
     ):
-        print("[INFO] Loading real baseline stPainter dataset...")
+        print("[INFO] Loading real baseline dataset...")
         processed = (
             DATA_ROOT / "processed"
             if (DATA_ROOT / "processed").exists()
