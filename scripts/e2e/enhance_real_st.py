@@ -129,6 +129,7 @@ def main(args):
         max_epochs=args.max_epochs,
         guidance_scale=args.guidance_scale,
         cancer_types=[args.cancer] if args.cancer else cancers[:1],
+        vae_batch_key="cancer_type",  # this script keys cancer labels here; #106
     )
 
     # 1. Train scVI VAE on reference (if not provided)
