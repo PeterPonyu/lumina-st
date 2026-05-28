@@ -19,10 +19,10 @@ will use is intentionally small:
     x_gen     = sampler.sample_ode(model, shape=(batch, latent_dim), ...)
 
 Note:
-    ``sample_ode`` integrates the drift returned by the model/transport. For
-    classifier-free guidance, pass a model wrapper or closure that already
-    applies guidance; the ``cfg_scale`` argument is retained for backwards
-    compatibility and is not applied internally.
+    ``sample_ode`` integrates the drift returned by the model/transport. When
+    ``cfg_scale != 1.0`` it applies classifier-free guidance by blending the
+    conditional drift (``model_kwargs``) with the unconditional drift
+    (``uncond_model_kwargs``); see its docstring for the convention.
 """
 
 from __future__ import annotations
@@ -180,14 +180,20 @@ class FlowSampler:
         rtol: float = 1e-5,
         cfg_scale: float = 1.0,
         model_kwargs: Optional[Dict[str, Any]] = None,
+        uncond_model_kwargs: Optional[Dict[str, Any]] = None,
         t_forward: Optional[float] = None,
     ) -> torch.Tensor:
         """Integrate the probability-flow ODE from noise to data.
 
         ``shape`` is required for meaningful sampling; if omitted, a tiny
         placeholder shape is used only for backwards-compatible smoke tests.
-        Classifier-free guidance is not applied by this helper itself; callers
-        should pass a guided drift/model wrapper when ``cfg_scale`` is needed.
+
+        Classifier-free guidance is applied here when ``cfg_scale != 1.0``: the
+        conditional drift (from ``model_kwargs``) and the unconditional drift
+        (from ``uncond_model_kwargs``) are combined as
+        ``v_uncond + cfg_scale * (v_cond - v_uncond)``. ``uncond_model_kwargs``
+        defaults to ``model_kwargs`` with any ``"y"`` label removed so the same
+        ``model_kwargs`` shape used elsewhere works out of the box.
         """
         model = model or self.model
         assert model is not None, "No model provided to sampler"
@@ -204,13 +210,21 @@ class FlowSampler:
             # For simplicity we just scale here; real usage will do proper forward diffusion
             x = x * (t_forward ** 0.5)
 
-        drift = self.transport.get_drift(model, **(model_kwargs or {}))
+        cond_kwargs = model_kwargs or {}
 
-        # Very simple wrapper – real CFG doubling happens in the model wrapper
-        if cfg_scale != 1.0:
-            # The caller (Lumina / Aether module) is responsible for the
-            # double-batch CFG trick. We just integrate whatever drift it gives us.
-            pass
+        if cfg_scale == 1.0:
+            drift = self.transport.get_drift(model, **cond_kwargs)
+        else:
+            # Real CFG: blend the conditional and unconditional drifts.
+            if uncond_model_kwargs is None:
+                uncond_model_kwargs = {k: v for k, v in cond_kwargs.items() if k != "y"}
+            cond_drift = self.transport.get_drift(model, **cond_kwargs)
+            uncond_drift = self.transport.get_drift(model, **uncond_model_kwargs)
+
+            def drift(x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+                v_cond = cond_drift(x_t, t)
+                v_uncond = uncond_drift(x_t, t)
+                return v_uncond + cfg_scale * (v_cond - v_uncond)
 
         integrator = ode(
             drift,
