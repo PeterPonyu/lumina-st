@@ -11,16 +11,22 @@ clean, modern LightningModule that:
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
-from typing import Optional
+from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from torchdiffeq import odeint
 
 from ..config.lumina_config import LuminaSTConfig
 from ..flow import create_flow_transport, FlowSampler
 from ..models.lumina_transformer import LuminaTransformer
+
+# Fixed-step solvers integrate the guided drift with an explicit hand-written
+# loop; everything else is delegated to ``torchdiffeq.odeint`` (adaptive).
+_FIXED_STEP_SOLVERS = frozenset({"euler", "heun"})
 
 
 class LuminaFlowModule(pl.LightningModule):
@@ -150,57 +156,127 @@ class LuminaFlowModule(pl.LightningModule):
         null_y = torch.full_like(y, null_class) if use_guidance else y
 
         num_steps = self.config.num_sampling_steps
+        sampling_method = self.config.sampling_method
 
-        # Pre-allocate inputs to avoid CPU-GPU synchronization and dynamic memory allocation inside the loop
+        # 3. Integration interval. "baseline" reproduces the stPainter bug of
+        # integrating over the full [0, 1] window even though the state starts at
+        # t_forward; "correct" integrates the physically meaningful [t_forward, 1].
+        t_start = 0.0 if ode_style == "baseline" else float(t_forward)
+        t_end = 1.0
+        span = t_end - t_start
+
         if use_guidance:
-            z_in = torch.empty(batch_size * 2, z.shape[1], device=device, dtype=z.dtype)
             y_in = torch.cat([y, null_y], dim=0)
         else:
-            z_in = torch.empty_like(z_t)
             y_in = y
 
-        # 3. Pre-compute the time steps and tile them on the GPU
-        if ode_style == "baseline":
-            dt = 1.0 / max(num_steps, 1)
-            t_grid = torch.arange(num_steps, device=device, dtype=z.dtype) * dt
-        else:
-            dt = (1.0 - t_forward) / max(num_steps, 1)
-            t_grid = t_forward + torch.arange(num_steps, device=device, dtype=z.dtype) * dt
-
-        t_in_matrix = t_grid.unsqueeze(1).repeat(1, batch_size * 2)
-
-        # 4. ODE Integration Loop
-        for step in range(num_steps):
-            # Slices/assignments are in-place, avoiding CUDA allocations
+        # 4. Build a guidance-aware drift closure (x, t) -> v_guided(x, t). This
+        # is solver-agnostic: the same closure is integrated by the fixed-step
+        # loops below and by torchdiffeq.odeint for adaptive solvers. CFG (the
+        # doubled-batch trick) and the cfg_decay schedule live entirely inside it
+        # so guidance works identically under every solver.
+        def drift(x: torch.Tensor, t_scalar: float) -> torch.Tensor:
             if use_guidance:
-                z_in[:batch_size] = z_t
-                z_in[batch_size:] = z_t
+                z_in = torch.cat([x, x], dim=0)
             else:
-                z_in.copy_(z_t)
-            t_in = t_in_matrix[step][: z_in.shape[0]]
-
-            # Dynamic CFG Schedule (Priority 5)
-            if cfg_decay is not None and num_steps > 1:
-                ratio = step / (num_steps - 1)
-                if cfg_decay == "linear":
-                    current_cfg = cfg_scale - (cfg_scale - 1.0) * ratio
-                elif cfg_decay == "cosine":
-                    import math
-                    current_cfg = 1.0 + (cfg_scale - 1.0) * (1.0 + math.cos(math.pi * ratio)) / 2.0
-                else:
-                    current_cfg = cfg_scale
-            else:
-                current_cfg = cfg_scale
+                z_in = x
+            t_in = torch.full((z_in.shape[0],), t_scalar, device=device, dtype=x.dtype)
 
             out = self.ema_model(z_in, t_in, y_in)
             out = self.transport.prediction_to_velocity(out, z_in, t_in)
-            if use_guidance:
-                v_cond = out[:batch_size]
-                v_uncond = out[batch_size:]
-                v_guided = v_uncond + current_cfg * (v_cond - v_uncond)
-            else:
-                v_guided = out
 
-            z_t = z_t + v_guided * dt
+            if not use_guidance:
+                return out
+
+            # Dynamic CFG schedule based on progress through [t_start, t_end] so
+            # the decay is well-defined for adaptive solvers (no step index).
+            current_cfg = cfg_scale
+            if cfg_decay is not None and span > 0:
+                ratio = (t_scalar - t_start) / span
+                ratio = min(max(ratio, 0.0), 1.0)
+                if cfg_decay == "linear":
+                    current_cfg = cfg_scale - (cfg_scale - 1.0) * ratio
+                elif cfg_decay == "cosine":
+                    current_cfg = 1.0 + (cfg_scale - 1.0) * (1.0 + math.cos(math.pi * ratio)) / 2.0
+
+            v_cond = out[:batch_size]
+            v_uncond = out[batch_size:]
+            return v_uncond + current_cfg * (v_cond - v_uncond)
+
+        # 5. Dispatch on the configured solver.
+        z_t = self._integrate(
+            drift,
+            z_t,
+            t_start=t_start,
+            t_end=t_end,
+            num_steps=num_steps,
+            sampling_method=sampling_method,
+        )
 
         return z_t
+
+    def _integrate(
+        self,
+        drift: Callable[[torch.Tensor, float], torch.Tensor],
+        x0: torch.Tensor,
+        *,
+        t_start: float,
+        t_end: float,
+        num_steps: int,
+        sampling_method: str,
+    ) -> torch.Tensor:
+        """Integrate dx/dt = drift(x, t) from ``t_start`` to ``t_end``.
+
+        Fixed-step ``euler``/``heun`` use explicit loops (fast, checkpoint-parity
+        with the previous behaviour). Any other method is treated as an adaptive
+        solver and delegated to ``torchdiffeq.odeint`` with the configured
+        ``atol``/``rtol``, integrating over ``[t_start, t_end]``.
+        """
+        method = sampling_method.lower()
+        steps = max(int(num_steps), 1)
+        dt = (t_end - t_start) / steps
+
+        if method == "euler":
+            x = x0
+            t = t_start
+            for _ in range(steps):
+                x = x + drift(x, t) * dt
+                t += dt
+            return x
+
+        if method == "heun":
+            x = x0
+            t = t_start
+            for _ in range(steps):
+                k1 = drift(x, t)
+                x_pred = x + k1 * dt
+                k2 = drift(x_pred, t + dt)
+                x = x + 0.5 * (k1 + k2) * dt
+                t += dt
+            return x
+
+        if method in _FIXED_STEP_SOLVERS:  # pragma: no cover - defensive
+            raise ValueError(f"Unhandled fixed-step solver: {sampling_method}")
+
+        # Adaptive solver via torchdiffeq. odeint passes a scalar time tensor; the
+        # drift closure expects a Python float, so unwrap it.
+        ts = torch.tensor([t_start, t_end], device=x0.device, dtype=x0.dtype)
+
+        def ode_func(t: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+            return drift(x, float(t))
+
+        try:
+            sol = odeint(
+                ode_func,
+                x0,
+                ts,
+                method=method,
+                atol=self.config.atol,
+                rtol=self.config.rtol,
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"Unknown sampling_method {sampling_method!r}; expected one of "
+                f"euler, heun, or a torchdiffeq solver (e.g. dopri5)."
+            ) from exc
+        return sol[-1]
