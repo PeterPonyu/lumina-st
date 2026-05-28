@@ -42,6 +42,7 @@ dependencies = [
   "tqdm",
   "einops",
   "torchdiffeq",
+  "pytorch_lightning>=2.4",
 ]
 
 [project.optional-dependencies]
