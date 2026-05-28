@@ -289,6 +289,12 @@ class LuminaImputer:
             z_obs, info = self.module.vae.encode_to_latent(x, y)
             library = info.get("library", None)
         else:
+            if adata.n_vars != cfg.latent_dim:
+                raise ValueError(
+                    f"enhance() requires adata.n_vars (={adata.n_vars}) == cfg.latent_dim "
+                    f"(={cfg.latent_dim}) when no VAE is configured. "
+                    f"Either attach a VAE via vae_checkpoint, or supply latent-space input."
+                )
             # Assume data is already in latent space or use identity
             z_obs = x
             library = None
