@@ -64,7 +64,10 @@ def test_compare_outputs_missing_external_baseline_is_clean_precondition() -> No
     )
 
     assert result.returncode == 2
-    assert "baselines/stPainter-original" in result.stdout
+    # Assert on a neutral substring from the precondition error rather than the
+    # raw baseline-clone path, so the test does not surface the prior-art brand
+    # name in CI logs. The exact path is still shown to end-users by the script.
+    assert "optional frozen baseline clone" in result.stdout
     assert "Traceback" not in result.stderr
 
 
