@@ -81,13 +81,15 @@ def per_subtype_degs(
     sub_labels: Sequence[Any],
     n_top: int = 20,
     eps: float = 1e-12,
+    fdr_method: str = "bh",
+    fdr_alpha: float = 0.05,
 ) -> dict[Any, list[dict[str, float]]]:
     """For each sub-label, find genes differentially expressed vs all others.
 
     Uses Mann-Whitney U (rank-sum) so it's distribution-free and works on
     raw or normalized expression. Returns the top-N positively-enriched
-    genes per sub-label with effect-size + raw p-value. The caller
-    applies Benjamini-Hochberg via `lumina_st.metrics.statistical`.
+    genes per sub-label with effect-size, raw p-value, and a multiple-
+    testing-corrected ``q_value`` (Benjamini-Hochberg by default).
 
     Args:
         X: (N, G) expression matrix.
@@ -95,12 +97,24 @@ def per_subtype_degs(
         sub_labels: length-N sub-cluster labels (-1 = unassigned, ignored).
         n_top: number of top genes per sub-label.
         eps: small constant to avoid div-by-zero in effect-size.
+        fdr_method: ``"bh"`` (default) applies Benjamini-Hochberg correction
+            across all (sub-label × gene) tests computed in this call;
+            ``"none"`` skips correction and reports ``q_value = NaN``.
+        fdr_alpha: FDR target used to populate the ``reject`` flag per row.
 
     Returns:
-        dict {sub_label: [{"gene", "auc", "u", "p_value", "log2fc"}, ...]}
+        dict {sub_label: [{"gene", "auc", "u", "p_value", "q_value",
+                          "reject", "log2fc"}, ...]}
         sorted by AUC descending (most enriched first).
     """
     from scipy.stats import mannwhitneyu
+
+    from lumina_st.metrics.statistical import benjamini_hochberg
+
+    if fdr_method not in {"bh", "none"}:
+        raise ValueError(
+            f"fdr_method must be 'bh' or 'none', got {fdr_method!r}"
+        )
 
     arr = np.asarray(X, dtype=np.float64)
     if arr.shape[1] != len(var_names):
@@ -116,11 +130,14 @@ def per_subtype_degs(
     labels_arr = labels_arr[valid]
     unique_labels = sorted(set(labels_arr.tolist()))
 
-    result: dict[Any, list[dict[str, float]]] = {}
+    # Stage 1: collect all (sub-label × gene) test rows before FDR.
+    # Truncation to n_top is deferred so BH sees the full p-value
+    # distribution (correcting only the top-N would understate FDR).
+    per_label_rows: dict[Any, list[dict[str, Any]]] = {}
     for ul in unique_labels:
         group_mask = labels_arr == ul
         if group_mask.sum() < 3 or (~group_mask).sum() < 3:
-            result[ul] = []
+            per_label_rows[ul] = []
             continue
         in_X = arr[group_mask]
         out_X = arr[~group_mask]
@@ -146,6 +163,28 @@ def per_subtype_degs(
                 "p_value": float(p),
                 "log2fc": log2fc,
             })
+        per_label_rows[ul] = rows
+
+    # Stage 2: apply BH across all collected p-values jointly. Correcting
+    # globally is the standard for cross-cluster DEG analysis — every
+    # gene × subtype combination is a separate hypothesis.
+    flat_rows = [r for rows in per_label_rows.values() for r in rows]
+    if fdr_method == "bh" and flat_rows:
+        bh = benjamini_hochberg(
+            np.array([r["p_value"] for r in flat_rows], dtype=np.float64),
+            alpha=fdr_alpha,
+        )
+        for r, q, rej in zip(flat_rows, bh["q_values"], bh["reject"], strict=True):
+            r["q_value"] = float(q)
+            r["reject"] = bool(rej)
+    else:
+        for r in flat_rows:
+            r["q_value"] = float("nan")
+            r["reject"] = False
+
+    # Stage 3: per-subtype AUC sort + top-N truncation.
+    result: dict[Any, list[dict[str, float]]] = {}
+    for ul, rows in per_label_rows.items():
         rows.sort(key=lambda r: r["auc"], reverse=True)
         result[ul] = rows[:n_top]
     return result
