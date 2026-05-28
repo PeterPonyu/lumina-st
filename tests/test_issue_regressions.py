@@ -255,3 +255,76 @@ def test_all_torch_load_calls_use_weights_only() -> None:
                     and kw.value.value is True
                     for kw in node.keywords
                 ), f"{path} has torch.load without weights_only=True"
+
+
+# ---------------------------------------------------------------------------
+# Issue #30 — held-out gene metric silently scored all genes when none present
+# ---------------------------------------------------------------------------
+
+
+def _make_adata(var_names: list[str]) -> "anndata.AnnData":  # type: ignore[name-defined]
+    import anndata as ad
+    import numpy as np
+    import pandas as pd
+
+    n_cells = 4
+    X = np.ones((n_cells, len(var_names)), dtype=np.float32)
+    return ad.AnnData(X=X, var=pd.DataFrame(index=var_names))
+
+
+def test_issue30_held_out_genes_not_present_raises_valueerror() -> None:
+    """Reproducer from issue #30: no requested gene is in var_names → must raise."""
+    import numpy as np
+    from lumina_st.benchmarks.contract import compute_imputation_metrics
+
+    imputed = _make_adata(["A", "B"])
+    truth = np.ones((4, 2), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="held_out_genes"):
+        compute_imputation_metrics(
+            truth=truth,
+            imputed=imputed,
+            held_out_genes=["X", "Y"],  # neither present
+        )
+
+
+def test_issue30_held_out_genes_subset_scores_only_that_gene() -> None:
+    """Positive case: held_out_genes=['A'] with var_names=['A','B'] scores only A."""
+    import numpy as np
+    from lumina_st.benchmarks.contract import compute_imputation_metrics
+
+    imputed = _make_adata(["A", "B"])
+    truth = np.ones((4, 2), dtype=np.float32)
+
+    metrics = compute_imputation_metrics(
+        truth=truth,
+        imputed=imputed,
+        held_out_genes=["A"],
+    )
+
+    assert metrics["n_genes_scored"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Issue #31 — BaseAdapter.run lets metric/shape errors escape
+# ---------------------------------------------------------------------------
+
+
+def test_issue31_badshape_adapter_returns_error_status_not_raises() -> None:
+    """Reproducer from issue #31: shape mismatch in metrics must not propagate."""
+    import anndata as ad
+    import numpy as np
+    from lumina_st.benchmarks.contract import AdapterInput, BaseAdapter
+
+    class BadShapeAdapter(BaseAdapter):
+        name = "bad_shape"
+
+        def _impute(self, masked: ad.AnnData, inp: AdapterInput) -> ad.AnnData:
+            # Return adata with wrong number of genes → compute_imputation_metrics raises
+            return _make_adata(["A"])  # truth has 2 genes
+
+    inp = AdapterInput(input_h5ad=_make_adata(["A", "B"]))
+    result = BadShapeAdapter().run(inp)
+
+    assert result.status.startswith("error:"), f"Expected error status, got: {result.status!r}"
+    assert not result.status == "ok"
