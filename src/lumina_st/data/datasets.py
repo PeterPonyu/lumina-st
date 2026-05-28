@@ -53,8 +53,20 @@ class ReferenceAtlasDataset(Dataset):
         self.config = config
         self.registry = registry or CancerRegistry.default_pan_cancer()
 
-        # Pre-compute cancer indices
+        # Pre-compute cancer indices.
+        # ``vae_batch_key`` defaults to ``None`` (issue #106) so a forgotten
+        # config can't silently miss the cancer-label column. Require the
+        # caller to set it explicitly and surface a message that names the
+        # field — not the literal ``None`` lookup that would otherwise be
+        # rendered by ``adata.obs[None]``.
         key = config.vae_batch_key
+        if key is None:
+            raise ValueError(
+                "vae_batch_key must be configured explicitly when building "
+                "ReferenceAtlasDataset (typically 'cancer_type'). "
+                "LuminaSTConfig.vae_batch_key defaults to None to prevent a "
+                "silent conflict with the 'cancer_type' column used elsewhere."
+            )
         if key not in adata.obs:
             raise KeyError(f"Cancer key '{key}' not found in .obs")
 
