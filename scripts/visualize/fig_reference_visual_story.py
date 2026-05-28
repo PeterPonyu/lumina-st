@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Clean-room LuminaST manuscript visualization storyboard.
 
-This figure is informed by reading the supplied STPAINTER PDF, but it does not
+This figure is informed by standard spatial-transcriptomics figure conventions, but it does not
 copy source artwork, captions, logos, or panel wording.  The goal is to encode
 similar *visual logic* for this repository: workflow schematic, quality trends,
 spatial marker recovery, cluster-to-label concordance, and sub-lineage checks.

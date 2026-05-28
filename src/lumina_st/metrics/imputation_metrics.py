@@ -2,7 +2,7 @@
 
 Round 11 W002 + W003 — closes the SSIM, Jensen-Shannon, and cluster
 concordance gaps identified by docs/SCAFFOLD_READINESS_AUDIT.md against
-stPainter's main-paper Section 2.2 / 2.3 metric blocks.
+the corresponding sections of the baseline paper (Section 2.2 / 2.3 metric blocks).
 
 Every function is a pure (input -> scalar-or-dict) call with deterministic
 output on identical input. None of the functions assume AnnData or any
@@ -108,7 +108,7 @@ def cluster_concordance(truth_labels: Sequence[Any] | np.ndarray,
                         pred_labels: Sequence[Any] | np.ndarray) -> dict[str, float]:
     """Cluster-pair concordance returning {ARI, AMI, Homo, NMI}.
 
-    Matches the stPainter Section 2.3 clustering metric block. Wraps
+    Matches the baseline paper Section 2.3 clustering metric block. Wraps
     sklearn so the helper is a single import for downstream code.
 
     Args:

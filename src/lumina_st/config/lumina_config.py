@@ -1,7 +1,7 @@
 """
 LuminaST Configuration — Pydantic v2 models.
 
-This replaces the dozens of argparse groups in the original stPainter parsing.py
+This replaces the dozens of argparse groups in the legacy argparse-based configuration
 with a single, validated, serializable, and reproducible configuration object.
 
 All training, data, and inference hyperparameters live here.
