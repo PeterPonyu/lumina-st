@@ -31,7 +31,6 @@ from dataclasses import dataclass
 from typing import Literal, Tuple
 
 import torch
-import torch.nn.functional as F
 
 from .utils import expand_time_like_data
 
@@ -127,6 +126,23 @@ class InterpolationPath(ABC):
         ratio = a / da
         var = ratio * ds - s
         return (ratio * velocity - mean) / var
+
+    def noise_to_velocity(self, noise: torch.Tensor, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Convert a model's noise prediction x0 into the path velocity at ``x_t``."""
+        t = expand_time_like_data(t, x)
+        a, da = self.alpha(t)
+        s, ds = self.sigma(t)
+        x1 = (x - s * noise) / a.clamp_min(torch.finfo(x.dtype).eps)
+        return da * x1 + ds * noise
+
+    def score_to_velocity(self, score: torch.Tensor, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Convert a score prediction into the path velocity at ``x_t``."""
+        t = expand_time_like_data(t, x)
+        a, da = self.alpha(t)
+        s, ds = self.sigma(t)
+        ratio = a / da
+        var = s**2 - ratio * ds * s
+        return (score * var + x) / ratio
 
 
 # ----------------------------------------------------------------------
