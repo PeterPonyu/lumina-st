@@ -1,6 +1,6 @@
 """Per-patch tissue concordance metric.
 
-Round 12 W003 — closes the stPainter §2.4 / DeepSpatial §2.3 "patch-based
+Round 12 W003 — closes the §2.4 / §2.3 "patch-based
 cell-type concordance" content-variety gap. Segments tissue into an
 NxN grid, computes per-cell-type proportions in each patch, and
 correlates those proportions against ground truth.
@@ -105,8 +105,8 @@ def patch_concordance(
     """Per-cell-type Pearson concordance of per-patch proportions.
 
     Both inputs share the same coordinate grid (typically same cells with
-    truth-derived vs reconstruction-derived labels — e.g. stPainter
-    comparing stPainter-imputed vs CODEX-derived annotations).
+    truth-derived vs reconstruction-derived labels — e.g.
+    baseline-imputed vs CODEX-derived annotations).
 
     Args:
         truth_coords: (N, 2) coordinates.

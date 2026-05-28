@@ -4,7 +4,7 @@ Pure PyTorch replacements for timm's Attention and Mlp.
 This removes the timm dependency so the models run in the user's existing 'dl' conda environment
 (which already has torch, scvi-tools, scanpy, etc.) without needing extra installs.
 
-The implementations are faithful to the DiT / original GiT usage.
+The implementations are consistent with the standard DiT architecture.
 """
 
 from __future__ import annotations

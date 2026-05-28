@@ -1,6 +1,6 @@
 """Sub-clustering + per-subtype differential-expression scaffold.
 
-Round 12 W002 — closes the stPainter §2.5 (fine-grained dissection of cell
+Round 12 W002 — closes the §2.5 content gap (fine-grained dissection of cell
 subpopulations) content-variety gap identified in
 `docs/CONTENT_VARIETY_AUDIT.md`. Pure-function helpers; no AnnData
 dependency in the signatures; downstream code can wrap with AnnData.

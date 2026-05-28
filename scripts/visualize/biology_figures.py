@@ -5,7 +5,8 @@ LuminaST biology figure pack — what the model actually does.
 Runs in three modes:
 
   synthetic  read results/benchmark/enhanced/<config>.h5ad from the sweep
-  real       auto-detect data/baselines/stpainter/processed_data/st_*_test.h5ad,
+  real       auto-detect baseline test slices under
+             data/baselines/stpainter/processed_data/,
              subsample to <=10k cells/slice, train a tiny LuminaST end-to-end
              (TinyVAE + flow), and enhance the slice
   all        both
