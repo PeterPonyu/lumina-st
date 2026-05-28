@@ -58,3 +58,63 @@ def test_identity_imputation_pearson_one() -> None:
 
     assert "mean_pearson" in metrics, metrics
     assert metrics["mean_pearson"] == pytest.approx(1.0, abs=1e-6), metrics
+
+
+def test_gt_layer_used() -> None:
+    """Regression for #97+#127.
+
+    ``EnhancementEvaluator(gt_layer=...)`` previously stored ``gt_layer`` on
+    the instance and then silently ignored it — ``run_gene_metrics`` always
+    correlated the ``"imputed"`` layer against ``adata.X``. For held-out gene
+    evaluation this produced a number measuring imputed-vs-observed
+    self-consistency, not imputed-vs-truth accuracy.
+
+    With the fix, ``gt_layer`` is honored: when set and present, the
+    correlation is computed against ``adata.layers[gt_layer]``, and the
+    resulting metric differs from the ``.X``-based baseline.
+    """
+
+    rng = np.random.default_rng(0)
+    n_obs, n_vars = 30, 8
+
+    # Three matrices: imputed must correlate near-perfectly with truth and
+    # be ~uncorrelated with X so the two reference paths give clearly
+    # different numbers.
+    truth = rng.normal(loc=5.0, scale=2.0, size=(n_obs, n_vars)).astype(np.float32)
+    noise = rng.normal(loc=0.0, scale=2.0, size=(n_obs, n_vars)).astype(np.float32)
+    observed_X = rng.normal(loc=5.0, scale=2.0, size=(n_obs, n_vars)).astype(np.float32)
+    imputed = truth + 0.01 * noise
+
+    adata = AnnData(X=observed_X)
+    adata.layers["imputed"] = imputed
+    adata.layers["truth"] = truth
+
+    baseline = EnhancementEvaluator(adata).run_gene_metrics()
+    grounded = EnhancementEvaluator(adata, gt_layer="truth").run_gene_metrics()
+
+    # Honoring gt_layer must change the reported numbers.
+    assert grounded["mean_pearson"] != pytest.approx(
+        baseline["mean_pearson"], abs=1e-3
+    ), (baseline, grounded)
+    # And the grounded number must reflect imputed-vs-truth (~1.0), while
+    # the .X-baseline must be far below it (uncorrelated).
+    assert grounded["mean_pearson"] > 0.9, grounded
+    assert baseline["mean_pearson"] < 0.5, baseline
+
+
+def test_gt_layer_missing_raises() -> None:
+    """Regression for #97+#127.
+
+    Passing a ``gt_layer`` that is not present in ``adata.layers`` must
+    raise rather than silently falling back to ``.X`` — the silent fallback
+    was the original bug.
+    """
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(loc=5.0, scale=2.0, size=(20, 5)).astype(np.float32)
+    adata = AnnData(X=X)
+    adata.layers["imputed"] = X.copy()
+
+    evaluator = EnhancementEvaluator(adata, gt_layer="not_there")
+    with pytest.raises(KeyError, match="gt_layer"):
+        evaluator.run_gene_metrics()
