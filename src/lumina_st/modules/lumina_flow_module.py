@@ -164,7 +164,7 @@ class LuminaFlowModule(pl.LightningModule):
         num_steps = self.config.num_sampling_steps
         sampling_method = self.config.sampling_method
 
-        # 3. Integration interval. "baseline" reproduces the stPainter bug of
+        # 3. Integration interval. "baseline" reproduces the prior-art baseline's bug of
         # integrating over the full [0, 1] window even though the state starts at
         # t_forward; "correct" integrates the physically meaningful [t_forward, 1].
         t_start = 0.0 if ode_style == "baseline" else float(t_forward)
