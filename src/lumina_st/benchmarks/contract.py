@@ -310,6 +310,12 @@ def compute_imputation_metrics(
         "sparsity_imputed": sparsity_imputed,
         "zero_pattern_jaccard": zero_match,
         "n_genes_scored": len(cols),
+        # Constant / zero-variance genes have undefined correlation and are
+        # dropped from mean_pearson / mean_spearman. Expose the true denominator
+        # of each correlation mean so it cannot be silently confused with
+        # n_genes_scored, which counts every attempted held-out gene (issue #140).
+        "n_genes_pearson_scored": len(pearson_vals),
+        "n_genes_spearman_scored": len(spearman_vals),
         "n_cells": int(truth.shape[0]),
     }
 
