@@ -155,7 +155,15 @@ def per_subtype_degs(
                 continue
             n1, n2 = in_col.size, out_col.size
             auc = float(u) / (n1 * n2)
-            log2fc = float(np.log2((in_mean[j] + eps) / (out_mean[j] + eps)))
+            # log2 fold-change is a ratio of expression magnitudes and is only
+            # defined for non-negative means. On normalized/scaled expression a
+            # group mean can be <= 0; the raw ratio then goes negative (or
+            # blows up near zero), so np.log2 returned NaN/-inf and silently
+            # corrupted the DEG table (issue #99). Floor both means at a small
+            # positive eps so the result is always finite and real.
+            num = float(max(float(in_mean[j]), eps))
+            den = float(max(float(out_mean[j]), eps))
+            log2fc = float(np.log2(num / den))
             rows.append({
                 "gene": var_names[j],
                 "auc": float(auc),
