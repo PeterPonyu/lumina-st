@@ -44,7 +44,13 @@ class LuminaSTConfig(BaseModel):
     latent_dim: int = 50
     vae_checkpoint: Optional[Path] = None
     freeze_vae_encoder: bool = True
-    vae_batch_key: str = "batch"  # or "Tumor Type" in original data
+    # `.obs` column that names the VAE batch / cancer label for each cell.
+    # Defaults to ``None`` (issue #106) — the historical literal ``"batch"``
+    # silently conflicted with the ``"cancer_type"`` column read by other
+    # call sites such as :class:`SpatialTranscriptomicsDataset`, so an
+    # unconfigured run could mis-label every cell. Callers must set this
+    # explicitly (typically ``"cancer_type"``) when constructing a dataset.
+    vae_batch_key: Optional[str] = None
     latent_encoder_backend: Literal["tiny_vae", "scvi", "scgpt", "nicheformer", "geneformer", "uce"] = "tiny_vae"
     foundation_embedding_dim: Optional[int] = None
     foundation_checkpoint: Optional[Path] = None

@@ -148,8 +148,6 @@ def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, s
     X_ref = np.maximum(X_target + rng.normal(0, X_target.std() * 0.1, X_target.shape).astype(np.float32), 0.0)
     ref = AnnData(X=X_ref)
     ref.obs["cancer_type"] = cancer_name
-    # ReferenceAtlasDataset keys on config.vae_batch_key (default "batch")
-    ref.obs["batch"] = cancer_name
     ref.var_names = list(target.var_names)
 
     registry = CancerRegistry({cancer_name: 0})
@@ -158,6 +156,7 @@ def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, s
         batch_size=64, max_epochs=3,
         cancer_types=[cancer_name],
         apply_sparsity=False,
+        vae_batch_key="cancer_type",  # ReferenceAtlasDataset keys here; #106
     )
 
     transformer = LuminaTransformer(
