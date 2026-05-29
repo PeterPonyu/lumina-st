@@ -23,6 +23,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_cytassist_ffpe_breast` | Visium CytAssist FFPE Breast | #63 | 10x Genomics dataset — [Human Breast Cancer, CytAssist FFPE (2-standard)](https://www.10xgenomics.com/datasets/gene-and-protein-expression-library-of-human-breast-cancer-cytassist-ffpe-2-standard) |
 | `10x_visiumhd_breast` | Visium HD Breast Cancer FFPE | #64 | 10x Genomics dataset — [Visium HD, Human Breast Cancer FFPE (IF)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-human-breast-cancer-ffpe-if) |
 | `10x_xenium_prime_breast` | Xenium Prime 5K Breast | #65, #184 | 10x Genomics dataset — [Xenium Prime FFPE Human Breast Cancer](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-breast-cancer) · ⚠️ UNVERIFIED Output-Bundle hotlink |
+| `10x_xenium_prime_skin` | Xenium Prime 5K Skin / Melanoma | #66, #184 | 10x Genomics dataset (PREVIEW) — [Xenium Prime FFPE Human Skin](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-skin) · ⚠️ UNVERIFIED hotlink + Preview Data caveat |
 
 ## Related infrastructure
 
