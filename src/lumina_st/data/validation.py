@@ -111,12 +111,17 @@ class AnnDataSchemaValidator:
             min_overlap_ratio: Minimum ratio of target genes that must exist in reference.
             
         Returns:
-            List of overlapping gene names.
+            List of overlapping gene names, sorted alphabetically so the
+            returned ordering is deterministic across processes (independent
+            of ``PYTHONHASHSEED``).
         """
         target_genes = set(target_adata.var_names)
         ref_genes = set(ref_adata.var_names)
-        
-        overlap = list(target_genes.intersection(ref_genes))
+
+        # Deterministic order: sort the intersection so the returned list
+        # (and any AnnData subset / column reorder built from it) does NOT
+        # depend on Python's randomized string hashing.
+        overlap = sorted(target_genes & ref_genes)
         overlap_ratio = len(overlap) / max(1, len(target_genes))
         
         logger.info(f"Gene overlap count: {len(overlap)} / {len(target_genes)} ({overlap_ratio * 100:.2f}%)")
