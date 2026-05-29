@@ -138,6 +138,7 @@ hardcode a guessed `cf.10xgenomics.com/...` URL).
 |---------|----------|---------------|---------------|--------------------|----------------------|
 | Xenium Prime 5K Breast Cancer | #65, #184 | ~5,100 genes · 699,110 cells | `BRCA` | `cell_feature_matrix.h5` / `.zarr.zip` (Output Bundle) | ~16× panel vs the 313-gene #60 demo; richest Xenium panel-imputation + cross-platform breast target. |
 | Xenium Prime 5K Skin / Dermal Melanoma | #66, #184 | 5,006 genes · 112,551 cells | `SKCM` | `cell_feature_matrix.h5` / `.zarr.zip` (PREVIEW) | Real melanoma upgrade of the non-diseased 377-gene #59 skin; fast Prime smoke target. **Preview Data** — verify bundle completeness first. `SKCM` is not in `default_pan_cancer` → needs registry config or `UNKNOWN`. |
+| Xenium Prime 5K Ovarian Cancer | #67, #184 | ~5,100 genes · 407,124 cells | `OV` | `cell_feature_matrix.h5` / `.zarr.zip` (Output Bundle) | First ovarian slice in the set; ships a pathologist-annotated H&E for region-aware evaluation. |
 
 All three: `X` ← raw per-cell integer counts (drop control/negative probes); `obsm['spatial']`
 ← `(x_centroid, y_centroid)`; read via `spatialdata_io.xenium()` or scanpy on
