@@ -344,6 +344,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="UNVERIFIED Output-Bundle hotlink — pull from Download tab. First ovarian-cancer "
         "slice in the set; ships pathology annotations. Part of the Prime 5K cohort (#184).",
     ),
+    "slideseqv2_cerebellum": DatasetSpec(
+        id="slideseqv2_cerebellum",
+        name="Slide-seqV2 cerebellum (B3)",
+        issues=(68,),
+        platform="Slide-seqV2 (bead array)",
+        tissue="mouse cerebellum (41,786 beads x 4,000 genes)",
+        cancer_type="UNKNOWN",
+        accession="squidpy figshare mirror 28242783",
+        url="https://squidpy.readthedocs.io/en/stable/api/squidpy.datasets.slideseqv2.html",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.SQUIDPY,
+        download_artifact="squidpy.datasets.slideseqv2() -> AnnData (raw UMI in .X)",
+        citation_key="stickels2021slideseqv2",
+        raw_count_policy="raw UMI already in .X; no restore needed.",
+        contract_mapping="SpatialTranscriptomicsDataset; bead xy -> .obsm['spatial']; "
+        ".obs['cancer_type']='UNKNOWN' (sparsity stress test).",
+        tier="B",
+        notes="Primary sparse raw-count imputation target. Loader verified in dl env "
+        "(squidpy 1.6.5). Shared cache with factorgraph-st / niche-lens-st.",
+    ),
 }
 
 
