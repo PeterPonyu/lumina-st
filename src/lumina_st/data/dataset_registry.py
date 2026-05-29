@@ -102,6 +102,25 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Registry first-pull. Pan-organ pool backs the pan-cancer claim.",
     ),
+    "her2st": DatasetSpec(
+        id="her2st",
+        name="her2st (counts)",
+        issues=(55,),
+        platform="legacy ST array (NOT Visium)",
+        tissue="HER2+ breast (36 sections, 8 patients)",
+        cancer_type="BRCA",
+        accession="Zenodo 3957257",
+        url="https://zenodo.org/records/3957257",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="count-matrices.zip (37.2 MB; .tsv.gz per section) from the Zenodo record",
+        citation_key="andersson2021her2st",
+        raw_count_policy="integer [n_spots]x[n_genes] count matrices; build AnnData per section.",
+        contract_mapping="SpatialTranscriptomicsDataset; array coords -> .obsm['spatial']; "
+        ".obs['cancer_type']='BRCA'.",
+        tier="A",
+        notes="Smallest cancer ST -> fast smoke target for held-out-gene recovery.",
+    ),
 }
 
 
