@@ -25,6 +25,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_xenium_prime_breast` | Xenium Prime 5K Breast | #65, #184 | 10x Genomics dataset — [Xenium Prime FFPE Human Breast Cancer](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-breast-cancer) · ⚠️ UNVERIFIED Output-Bundle hotlink |
 | `10x_xenium_prime_skin` | Xenium Prime 5K Skin / Melanoma | #66, #184 | 10x Genomics dataset (PREVIEW) — [Xenium Prime FFPE Human Skin](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-skin) · ⚠️ UNVERIFIED hotlink + Preview Data caveat |
 | `10x_xenium_prime_ovarian` | Xenium Prime 5K Ovarian | #67, #184 | 10x Genomics dataset — [Xenium Prime FFPE Human Ovarian Cancer](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-ovarian-cancer) · ⚠️ UNVERIFIED Output-Bundle hotlink |
+| `stickels2021slideseqv2` | Slide-seqV2 cerebellum (B3) | #68 | Stickels et al., *Highly sensitive spatial transcriptomics at near-cellular resolution with Slide-seqV2*, Nat. Biotechnol. 2021 — [doi:10.1038/s41587-020-0739-1](https://doi.org/10.1038/s41587-020-0739-1); mirror: squidpy figshare 28242783 |
 
 ## Related infrastructure
 
