@@ -18,13 +18,13 @@ Citation frame for the manuscript:
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from typing import Sequence
 
 import anndata as ad
 import numpy as np
 
-from .contract import AdapterInput, AdapterResult, BaseAdapter, compute_imputation_metrics
+from .contract import AdapterInput, BaseAdapter, compute_imputation_metrics
 from .panels import MarkerPanel
 
 

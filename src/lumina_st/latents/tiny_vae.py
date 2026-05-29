@@ -8,7 +8,6 @@ without requiring heavy scvi-tools installation for the initial validation.
 
 from __future__ import annotations
 
-from typing import Tuple, Dict
 
 import torch
 import torch.nn as nn
