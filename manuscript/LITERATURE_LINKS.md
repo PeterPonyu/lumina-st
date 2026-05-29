@@ -16,6 +16,7 @@ Source paper / portal for every dataset enumerated in
 | `andersson2021her2st` | her2st | #55 | Andersson et al., *Spatial deconvolution of HER2-positive breast cancer delineates tumor-associated cell type interactions*, Nat. Commun. 2021 — [doi:10.1038/s41467-021-26271-2](https://doi.org/10.1038/s41467-021-26271-2); data: [Zenodo 3957257](https://zenodo.org/records/3957257) |
 | `10x_visiumhd_crc` | Visium HD CRC | #56 | 10x Genomics dataset — [Visium HD CytAssist, Human CRC](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc) |
 | `10x_visiumhd_mousebrain` | Visium HD Mouse Brain | #57 | 10x Genomics dataset — [Visium HD CytAssist, Mouse Brain (H&E)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-mouse-brain-he) |
+| `10x_visiumhd_tonsil` | Visium HD Tonsil | #58 | 10x Genomics dataset — [Visium HD CytAssist, Human Tonsil (FF)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-human-tonsil-fresh-frozen) |
 
 ## Related infrastructure
 

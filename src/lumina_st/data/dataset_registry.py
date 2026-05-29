@@ -160,6 +160,25 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Dense non-cancer HD slice -> cross-tissue enhancement stress test.",
     ),
+    "visiumhd_tonsil": DatasetSpec(
+        id="visiumhd_tonsil",
+        name="Visium HD Tonsil",
+        issues=(58,),
+        platform="Visium HD (8 um bins)",
+        tissue="tonsil (fresh frozen)",
+        cancer_type="UNKNOWN",
+        accession="10x Genomics dataset page",
+        url="https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-human-tonsil-fresh-frozen",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="Visium_HD_Human_Tonsil_Fresh_Frozen_binned_outputs.tar.gz (17.4 GB) "
+        "-> square_008um/filtered_feature_bc_matrix.h5",
+        citation_key="10x_visiumhd_tonsil",
+        raw_count_policy="raw UMIs in square_008um/filtered_feature_bc_matrix.h5.",
+        contract_mapping="SpatialTranscriptomicsDataset @ 8 um bins; .obs['cancer_type']='UNKNOWN'.",
+        tier="A",
+        notes="Immune-rich HD slice. Registry size estimate (2-4 GB) is far too low (17.4 GB).",
+    ),
 }
 
 
