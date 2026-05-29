@@ -82,7 +82,26 @@ class DatasetSpec:
 # Issue numbers reference https://github.com/PeterPonyu/lumina-st/issues/<n>.
 # ---------------------------------------------------------------------------
 DATASET_REGISTRY: Dict[str, DatasetSpec] = {
-
+    "hest1k": DatasetSpec(
+        id="hest1k",
+        name="HEST-1k (counts)",
+        issues=(54, 70),
+        platform="Visium v1/v2 + legacy ST",
+        tissue="multi-organ H&E + ST (1,229 samples)",
+        cancer_type="MIXED",
+        accession="HuggingFace MahmoodLab/hest",
+        url="https://huggingface.co/datasets/MahmoodLab/hest",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.HUGGINGFACE,
+        download_artifact="st/<sample>.h5ad (per-sample raw-count AnnData)",
+        citation_key="jaume2024hest",
+        raw_count_policy="raw transcript counts already in .X + (x,y) coords; no restore needed.",
+        contract_mapping="SpatialTranscriptomicsDataset; per-sample cancer_type varies "
+        "(COAD/PRAD confirmed) -> map to CancerRegistry token or UNKNOWN. Also seeds the "
+        "ReferenceAtlasDataset pool.",
+        tier="A",
+        notes="Registry first-pull. Pan-organ pool backs the pan-cancer claim.",
+    ),
 }
 
 

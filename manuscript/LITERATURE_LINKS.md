@@ -12,6 +12,7 @@ Source paper / portal for every dataset enumerated in
 
 | `citation_key` | Dataset | Issue(s) | Source paper / portal |
 |----------------|---------|----------|-----------------------|
+| `jaume2024hest` | HEST-1k | #54, #70 | Jaume et al., *HEST-1k: A Dataset for Spatial Transcriptomics and Histology Image Analysis*, NeurIPS 2024 — [arXiv:2406.16192](https://arxiv.org/abs/2406.16192); data: [huggingface.co/datasets/MahmoodLab/hest](https://huggingface.co/datasets/MahmoodLab/hest) |
 
 ## Related infrastructure
 
