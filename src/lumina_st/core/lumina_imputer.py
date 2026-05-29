@@ -277,6 +277,30 @@ class LuminaImputer:
         if hasattr(expr, "toarray"):
             expr = expr.toarray()
 
+        # Validate the expression matrix before it flows into encoding/sampling.
+        # NaN/inf cells silently propagate to NaN latents and NaN imputations,
+        # and an empty matrix produces opaque downstream errors; reject both with
+        # a clear message up front (issue #126).
+        expr = np.asarray(expr)
+        if expr.ndim != 2:
+            raise ValueError(
+                f"[LuminaST] enhance() expects a 2-D expression matrix, "
+                f"got shape {expr.shape}"
+            )
+        if expr.shape[0] == 0 or expr.shape[1] == 0:
+            raise ValueError(
+                f"[LuminaST] enhance() received an empty expression matrix "
+                f"(shape {expr.shape}): need at least one cell and one gene"
+            )
+        if not np.all(np.isfinite(expr)):
+            n_nan = int(np.isnan(expr).sum())
+            n_inf = int(np.isinf(expr).sum())
+            raise ValueError(
+                f"[LuminaST] enhance() received a non-finite expression matrix: "
+                f"{n_nan} NaN and {n_inf} inf entries. Clean or impute these "
+                f"values before enhancement."
+            )
+
         # Zero out held-out gene columns at the raw-input layer (before
         # normalization or encoding) so the encoder sees them as absent.
         if held_out_genes:
