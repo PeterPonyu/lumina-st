@@ -66,6 +66,7 @@ class SweepConfig:
             batch_size=self.batch_size,
             max_epochs=self.max_epochs,
             cancer_types=cancer_names[:1],
+            vae_batch_key="cancer_type",  # synthetic fixture stores label here; #106
         )
 
 
