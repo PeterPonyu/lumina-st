@@ -116,7 +116,13 @@ class LuminaFlowModule(pl.LightningModule):
             z: Input latent tensor of shape (B, latent_dim).
             y: Conditional class label tensor of shape (B,).
             cfg_scale: Guidance scale (default is config.guidance_scale).
-            t_forward: Forward diffusion noise level (default is config.t_forward).
+            t_forward: Start time of the reverse ODE on the configured path.
+                With the LinearPath convention (t=1 is data, t=0 is noise) this
+                is the *data fraction* of the noised initial state
+                ``z_t = alpha(t_forward) * z + sigma(t_forward) * x0`` from
+                which the integrator runs to t=1. Smaller values noise the
+                input more (and therefore enhance it more). Defaults to
+                ``config.t_forward``.
             ode_style: Either "correct" (integrate forward from t_forward to 1.0) or
                        "baseline" (integrate forward from 0.0 to 1.0 starting at z_noisy,
                        replicating the upstream implementation behaviour).
@@ -159,7 +165,7 @@ class LuminaFlowModule(pl.LightningModule):
         num_steps = self.config.num_sampling_steps
         sampling_method = self.config.sampling_method
 
-        # 3. Integration interval. "baseline" reproduces the stPainter bug of
+        # 3. Integration interval. "baseline" reproduces the prior-art baseline's bug of
         # integrating over the full [0, 1] window even though the state starts at
         # t_forward; "correct" integrates the physically meaningful [t_forward, 1].
         t_start = 0.0 if ode_style == "baseline" else float(t_forward)

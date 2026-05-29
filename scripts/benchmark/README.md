@@ -55,6 +55,6 @@ docs/benchmark/                             (git-tracked)
   figures/latent_umap.png
 ```
 
-Real-data sweeps (when `data/baselines/stpainter/` is populated) can be added
+Real-data sweeps (when `$LUMINA_BASELINE_ROOT`, default `data/baselines/reference/`, is populated) can be added
 later by pointing `run_synthetic_sweep.py` at a different data loader; the
 metric/resource capture machinery stays the same.
