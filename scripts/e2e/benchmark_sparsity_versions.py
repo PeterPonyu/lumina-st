@@ -49,9 +49,10 @@ def pytorch_vectorized_sparsity(data_tensor, vals_tensor):
 def main():
     print("=== Spatial Omics Reform: Sparsity Constraint Benchmarking ===")
     
-    # Paths
-    data_path = "data/baselines/st_impute_ref/processed_data/st_CESC_test.h5ad"
-    sparsity_path = "data/baselines/st_impute_ref/processed_data/gene_sparsity_ratio.csv"
+    # Paths. Configurable baseline root (#121); override via LUMINA_BASELINE_ROOT.
+    processed_root = f"{os.environ.get('LUMINA_BASELINE_ROOT', 'data/baselines/reference')}/processed_data"
+    data_path = f"{processed_root}/st_CESC_test.h5ad"
+    sparsity_path = f"{processed_root}/gene_sparsity_ratio.csv"
     
     if not os.path.exists(data_path) or not os.path.exists(sparsity_path):
         print("Error: Real baseline data or sparsity files are missing.")
