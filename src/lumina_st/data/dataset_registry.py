@@ -141,6 +141,25 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="Flagship high-resolution COAD target. Pull binned_outputs.tar.gz from the "
         "page; do NOT hardcode a guessed cf.10xgenomics.com h5 hotlink (caveat #1).",
     ),
+    "visiumhd_mousebrain": DatasetSpec(
+        id="visiumhd_mousebrain",
+        name="Visium HD Mouse Brain",
+        issues=(57,),
+        platform="Visium HD (8 um bins)",
+        tissue="mouse brain (H&E)",
+        cancer_type="UNKNOWN",
+        accession="10x Genomics dataset page",
+        url="https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-mouse-brain-he",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="Visium_HD_Mouse_Brain_binned_outputs.tar.gz (4.6 GB) "
+        "-> square_008um/filtered_feature_bc_matrix.h5",
+        citation_key="10x_visiumhd_mousebrain",
+        raw_count_policy="raw UMIs in square_008um/filtered_feature_bc_matrix.h5.",
+        contract_mapping="SpatialTranscriptomicsDataset @ 8 um bins; .obs['cancer_type']='UNKNOWN'.",
+        tier="A",
+        notes="Dense non-cancer HD slice -> cross-tissue enhancement stress test.",
+    ),
 }
 
 

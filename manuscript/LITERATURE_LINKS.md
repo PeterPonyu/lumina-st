@@ -15,6 +15,7 @@ Source paper / portal for every dataset enumerated in
 | `jaume2024hest` | HEST-1k | #54, #70 | Jaume et al., *HEST-1k: A Dataset for Spatial Transcriptomics and Histology Image Analysis*, NeurIPS 2024 — [arXiv:2406.16192](https://arxiv.org/abs/2406.16192); data: [huggingface.co/datasets/MahmoodLab/hest](https://huggingface.co/datasets/MahmoodLab/hest) |
 | `andersson2021her2st` | her2st | #55 | Andersson et al., *Spatial deconvolution of HER2-positive breast cancer delineates tumor-associated cell type interactions*, Nat. Commun. 2021 — [doi:10.1038/s41467-021-26271-2](https://doi.org/10.1038/s41467-021-26271-2); data: [Zenodo 3957257](https://zenodo.org/records/3957257) |
 | `10x_visiumhd_crc` | Visium HD CRC | #56 | 10x Genomics dataset — [Visium HD CytAssist, Human CRC](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc) |
+| `10x_visiumhd_mousebrain` | Visium HD Mouse Brain | #57 | 10x Genomics dataset — [Visium HD CytAssist, Mouse Brain (H&E)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-mouse-brain-he) |
 
 ## Related infrastructure
 
