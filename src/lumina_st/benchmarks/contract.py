@@ -224,8 +224,9 @@ def compute_imputation_metrics(
     """Per-gene and overall scoring under the held-out-gene benchmark contract.
 
     Pearson and Spearman are computed per gene (column-wise); RMSE is computed
-    on z-score-normalized values; sparsity match is the per-cell Jaccard of
-    zero patterns.
+    on raw values (so it reflects absolute magnitude error rather than being a
+    rescaling of Pearson); sparsity match is the per-cell Jaccard of zero
+    patterns.
 
     All metrics are computed only on `held_out_genes` when provided; otherwise
     on every gene.
@@ -283,10 +284,12 @@ def compute_imputation_metrics(
             else:
                 per_gene_spearman[var_names[j]] = float("nan")
 
-        # RMSE on z-normalized values (cross-platform-invariant convention)
-        tn = _zscore(t)
-        hn = _zscore(h)
-        per_gene_rmse[var_names[j]] = float(np.sqrt(np.mean((tn - hn) ** 2)))
+        # RMSE on RAW values. Z-scoring both vectors before the RMSE made it
+        # an exact affine-invariant function of Pearson r — sqrt(2*(1 - r)) —
+        # so mean_rmse carried no information beyond mean_pearson (issue #133).
+        # Raw RMSE captures absolute magnitude / scale error that Pearson, by
+        # construction, is blind to.
+        per_gene_rmse[var_names[j]] = float(np.sqrt(np.mean((t - h) ** 2)))
 
     pearson_vals = [v for v in per_gene_pearson.values() if not np.isnan(v)]
     spearman_vals = [v for v in per_gene_spearman.values() if not np.isnan(v)]
@@ -309,13 +312,6 @@ def compute_imputation_metrics(
         "n_genes_scored": len(cols),
         "n_cells": int(truth.shape[0]),
     }
-
-
-def _zscore(x: np.ndarray) -> np.ndarray:
-    sd = x.std()
-    if sd < 1e-9:
-        return x - x.mean()
-    return (x - x.mean()) / sd
 
 
 def _rank(x: np.ndarray) -> np.ndarray:
