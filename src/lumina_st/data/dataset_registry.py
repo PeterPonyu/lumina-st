@@ -323,6 +323,27 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="PREVIEW DATA + UNVERIFIED hotlink. Real melanoma upgrade of non-diseased #59. "
         "Part of the Prime 5K cohort (#184). SKCM is not in default_pan_cancer.",
     ),
+    "xenium_prime_ovarian": DatasetSpec(
+        id="xenium_prime_ovarian",
+        name="Xenium Prime 5K Human Ovarian Cancer (~5,100-gene panel)",
+        issues=(67, 184),
+        platform="Xenium Prime (single-cell, XOA v3.2)",
+        tissue="ovarian cancer (FFPE; 407,124 cells; pathologist-annotated H&E)",
+        cancer_type="OV",
+        accession="10x Xenium Prime FFPE Human Ovarian Cancer (2024-12-17, XOA v3.2)",
+        url="https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-ovarian-cancer",
+        url_status=UrlStatus.UNVERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="cell_feature_matrix.zarr.zip (subset) / cell_feature_matrix.h5 "
+        "(full Output Bundle .zip) — confirm filename on Download tab",
+        citation_key="10x_xenium_prime_ovarian",
+        raw_count_policy="raw per-cell integer counts; keep genes only (drop control/negative probes).",
+        contract_mapping="SpatialTranscriptomicsDataset; (x_centroid,y_centroid)->.obsm['spatial']; "
+        ".obs['cancer_type']='OV'; optional region label from annotated H&E in .obs.",
+        tier="A",
+        notes="UNVERIFIED Output-Bundle hotlink — pull from Download tab. First ovarian-cancer "
+        "slice in the set; ships pathology annotations. Part of the Prime 5K cohort (#184).",
+    ),
 }
 
 
