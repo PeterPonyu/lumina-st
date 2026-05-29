@@ -19,6 +19,7 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 from lumina_st.config import LuminaSTConfig
+from lumina_st.core.lumina_imputer import save_flow_checkpoint
 from lumina_st.data.datasets import ReferenceAtlasDataset
 from lumina_st.data.cancer_registry import CancerRegistry
 from lumina_st.models.lumina_transformer import LuminaTransformer
@@ -127,14 +128,12 @@ def main(args):
     # Save
     out_dir = Path(cfg.output_dir) / cfg.experiment_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "state_dict": module.transformer.state_dict(),
-            "config": cfg.model_dump_for_checkpoint(),
-        },
-        out_dir / "lumina_flow.ckpt",
-    )
-    print(f"Model saved to {out_dir / 'lumina_flow.ckpt'}")
+    ckpt_path = out_dir / "lumina_flow.ckpt"
+    # Persist the full LightningModule state — including the EMA branch
+    # that ``enhance()`` actually samples from. See ``save_flow_checkpoint``
+    # docstring (lumina-st #147).
+    save_flow_checkpoint(module, cfg, ckpt_path)
+    print(f"Model saved to {ckpt_path}")
 
 
 if __name__ == "__main__":

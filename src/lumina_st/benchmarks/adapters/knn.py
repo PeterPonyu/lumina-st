@@ -1,7 +1,12 @@
 """kNN baseline: held-out genes are imputed from the k nearest cells in the
 observed-gene space.
 
-Single-dataset, reference-free baseline. Always available."""
+Neighbours are found in the *masked* observed-gene space (the only audit-safe
+signal for the cell being predicted); held-out gene values are then read off
+from those neighbours in the reference atlas ``inp.input_h5ad``. Each held-out
+gene therefore gets its own per-gene per-cell prediction (issue #137) instead
+of one per-cell scalar broadcast across every held-out column.
+"""
 
 from __future__ import annotations
 
@@ -40,14 +45,14 @@ class KNNAdapter(BaseAdapter):
         observed_mask[cols] = False
         X_obs = X[:, observed_mask]
 
-        # Pairwise distance in observed-gene space; cosine distance is robust
+        # Pairwise cosine similarity in observed-gene space; cosine is robust
         # to sparsity.
         n_obs = X_obs.shape[0]
         norm = np.linalg.norm(X_obs, axis=1, keepdims=True)
         norm = np.where(norm < 1e-9, 1.0, norm)
         X_unit = X_obs / norm
         sim = X_unit @ X_unit.T
-        np.fill_diagonal(sim, -np.inf)
+        np.fill_diagonal(sim, -np.inf)  # never let a cell be its own neighbour
 
         k = min(self.k, n_obs - 1)
         if k <= 0:
@@ -55,21 +60,24 @@ class KNNAdapter(BaseAdapter):
             out.layers["imputed"] = X
             return out
 
-        # Top-k indices per row
-        top_idx = np.argpartition(-sim, k, axis=1)[:, :k]
+        top_idx = np.argpartition(-sim, k, axis=1)[:, :k]  # (n_cells, k)
 
-        # For each held-out column, fill with mean of top-k neighbors' values
-        # *in that column*. But neighbors' held-out values are also zero, so we
-        # need the original input here. We use the masked X for distance, but
-        # since the truth gene panel is held out everywhere, we use the simple
-        # neighbor-average over the masked column — which equals zero in the
-        # masked-gene regime. This is the correct behavior for masked-gene
-        # benchmarks (the model must impute from observed genes only).
-        # For a non-zero baseline, fall back to per-cell mean of neighbors over
-        # observed columns.
-        per_cell_obs_mean = X_obs.mean(axis=1, keepdims=True)
-        neighbor_obs_mean = per_cell_obs_mean[top_idx, 0].mean(axis=1, keepdims=True)
-        X[:, cols] = neighbor_obs_mean
+        # Per-held-out-gene neighbour average from the reference atlas. This
+        # gives a *distinct* value per gene (and per cell) — the previous
+        # implementation collapsed every held-out column of a cell to one
+        # per-cell scalar, which made per-gene Pearson identical across all
+        # held-out genes regardless of true expression (issue #137).
+        ref_X = inp.input_h5ad.X
+        if hasattr(ref_X, "toarray"):
+            ref_X = ref_X.toarray()
+        ref_X = np.asarray(ref_X, dtype=np.float32)
+        ref_var_names = list(inp.input_h5ad.var_names)
+        for g, c in zip(inp.held_out_genes, cols):
+            if g not in ref_var_names:
+                continue
+            g_ref = ref_var_names.index(g)
+            # Mean over the k neighbours' reference values for this gene.
+            X[:, c] = ref_X[top_idx, g_ref].mean(axis=1)
 
         out = masked.copy()
         out.layers["imputed"] = X

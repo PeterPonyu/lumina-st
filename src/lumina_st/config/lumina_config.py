@@ -82,7 +82,13 @@ class LuminaSTConfig(BaseModel):
     # Sampling / Imputation (inference)
     # ------------------------------------------------------------------
     guidance_scale: float = 3.0
-    t_forward: float = 0.9  # how far to noise the observed genes before denoising
+    # Forward integration start time on the path. Convention (LinearPath): t=1 is
+    # data, t=0 is noise; ``t_forward`` is therefore the *data fraction* kept in
+    # the noised state z_t = alpha(t)*z + sigma(t)*x0. With t_forward=0.5 the
+    # observed latent is half-noised before the reverse ODE reintegrates it —
+    # the historical default 0.9 only displaced z by ~10% and produced a
+    # near-identity "enhancement". See issue #148.
+    t_forward: float = 0.5
     sampling_method: str = "dopri5"
     num_sampling_steps: int = 50
     atol: float = 1e-5
@@ -116,9 +122,26 @@ class LuminaSTConfig(BaseModel):
         return [c.upper() for c in v]
 
     def get_cancer_index(self, name: str) -> int:
-        """Will be wired to the registry at runtime."""
-        # Placeholder — real implementation lives in data/cancer_registry.py
-        return 0
+        """Return the integer index of ``name`` within ``cancer_types``.
+
+        Names are matched case-insensitively — the ``cancer_types`` field
+        validator upper-cases every entry, so any case maps to the same
+        index. The full ``CancerRegistry`` in ``data/cancer_registry.py`` is
+        the runtime-mutable version of this mapping; this method gives
+        callers that already hold a ``LuminaSTConfig`` a self-contained
+        lookup using the same convention.
+
+        Raises:
+            KeyError: if ``name`` is not present in ``self.cancer_types``.
+        """
+        key = name.upper()
+        try:
+            return self.cancer_types.index(key)
+        except ValueError as exc:
+            raise KeyError(
+                f"Unknown cancer type {name!r}; configured cancer_types="
+                f"{self.cancer_types}"
+            ) from exc
 
     def model_dump_for_checkpoint(self) -> Dict[str, Any]:
         """Safe subset to store next to checkpoints."""
