@@ -122,9 +122,26 @@ class LuminaSTConfig(BaseModel):
         return [c.upper() for c in v]
 
     def get_cancer_index(self, name: str) -> int:
-        """Will be wired to the registry at runtime."""
-        # Placeholder — real implementation lives in data/cancer_registry.py
-        return 0
+        """Return the integer index of ``name`` within ``cancer_types``.
+
+        Names are matched case-insensitively — the ``cancer_types`` field
+        validator upper-cases every entry, so any case maps to the same
+        index. The full ``CancerRegistry`` in ``data/cancer_registry.py`` is
+        the runtime-mutable version of this mapping; this method gives
+        callers that already hold a ``LuminaSTConfig`` a self-contained
+        lookup using the same convention.
+
+        Raises:
+            KeyError: if ``name`` is not present in ``self.cancer_types``.
+        """
+        key = name.upper()
+        try:
+            return self.cancer_types.index(key)
+        except ValueError as exc:
+            raise KeyError(
+                f"Unknown cancer type {name!r}; configured cancer_types="
+                f"{self.cancer_types}"
+            ) from exc
 
     def model_dump_for_checkpoint(self) -> Dict[str, Any]:
         """Safe subset to store next to checkpoints."""
