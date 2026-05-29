@@ -199,6 +199,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="UNVERIFIED hotlink (caveat #2): the registry page link 404s; the correct page "
         "adds the '-1-standard' suffix. Resolve from the Download tab. Upgraded by #66.",
     ),
+    "xenium_breast": DatasetSpec(
+        id="xenium_breast",
+        name="Xenium Breast Cancer (Janesick, 313-gene panel)",
+        issues=(60,),
+        platform="Xenium",
+        tissue="breast cancer",
+        cancer_type="BRCA",
+        accession="10x demo Xenium_V1_human_Breast (313-gene panel)",
+        url="https://www.10xgenomics.com/datasets/ffpe-human-breast-using-the-entire-sample-area-1-standard",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="Xenium_V1_human_Breast outputs "
+        "(Xenium_FFPE_Human_Breast_Cancer_Rep1_cell_feature_matrix.h5, 12 MB; full outs ~9.86 GB)",
+        citation_key="janesick2023xenium",
+        raw_count_policy="raw per-cell counts in cell_feature_matrix.h5; drop control/negative probes.",
+        contract_mapping="SpatialTranscriptomicsDataset; per-cell centroids -> .obsm['spatial']; "
+        ".obs['cancer_type']='BRCA'.",
+        tier="A",
+        notes="Canonical Xenium breast demo. Upgraded to 5K panel by #65.",
+    ),
 }
 
 

@@ -18,6 +18,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_visiumhd_mousebrain` | Visium HD Mouse Brain | #57 | 10x Genomics dataset — [Visium HD CytAssist, Mouse Brain (H&E)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-mouse-brain-he) |
 | `10x_visiumhd_tonsil` | Visium HD Tonsil | #58 | 10x Genomics dataset — [Visium HD CytAssist, Human Tonsil (FF)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-human-tonsil-fresh-frozen) |
 | `10x_xenium_skin` | Xenium Human Skin (377-gene) | #59 | 10x Genomics dataset — [Human Skin, Xenium Multi-Tissue & Cancer Panel](https://www.10xgenomics.com/datasets/human-skin-data-xenium-human-multi-tissue-and-cancer-panel) · ⚠️ UNVERIFIED hotlink (page link 404s; correct page adds `-1-standard`) |
+| `janesick2023xenium` | Xenium Breast Cancer (Janesick) | #60 | Janesick et al., *High resolution mapping of the tumor microenvironment using integrated single-cell, spatial and in situ analysis*, Nat. Commun. 2023 — [doi:10.1038/s41467-023-43458-x](https://doi.org/10.1038/s41467-023-43458-x); demo: 10x `Xenium_V1_human_Breast` |
 
 ## Related infrastructure
 
