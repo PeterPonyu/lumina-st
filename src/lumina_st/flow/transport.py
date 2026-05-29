@@ -36,7 +36,7 @@ import torch.nn as nn
 
 from .path import InterpolationPath, get_path
 from .integrators import ode
-from .utils import mean_flat
+from .utils import mean_flat, validate_guidance_scale
 
 
 class PredictionTarget(str, enum.Enum):
@@ -207,6 +207,8 @@ class FlowSampler:
         """
         model = model or self.model
         assert model is not None, "No model provided to sampler"
+
+        cfg_scale = validate_guidance_scale(cfg_scale)
 
         device = next(model.parameters()).device
         if shape is None:
