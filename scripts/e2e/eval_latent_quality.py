@@ -93,6 +93,7 @@ def main(args):
         batch_size=128,
         guidance_scale=args.guidance_scale,
         cancer_types=cancers,
+        vae_batch_key="cancer_type",  # synthetic/eval fixtures key labels here; #106
     )
 
     # 2. Train VAE

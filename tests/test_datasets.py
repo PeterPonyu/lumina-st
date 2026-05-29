@@ -39,11 +39,12 @@ def test_sparse_X_no_crash() -> None:
     adata = _make_anndata_sparse()
     assert sp.issparse(adata.X), "fixture must be sparse to exercise the bug"
 
-    config = LuminaSTConfig()
-
-    # ReferenceAtlasDataset — uses vae_batch_key (defaults to 'cancer_type'
-    # via the config). We re-key obs to match whatever the config expects.
+    # vae_batch_key now defaults to None (issue #106) so a forgotten config
+    # cannot silently mis-label cells. Set it explicitly to the column the
+    # fixture provides.
+    config = LuminaSTConfig(vae_batch_key="cancer_type")
     ref_key = config.vae_batch_key
+    assert ref_key is not None
     if ref_key not in adata.obs:
         adata.obs[ref_key] = adata.obs["cancer_type"].values
 

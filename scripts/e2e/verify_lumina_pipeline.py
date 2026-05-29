@@ -70,6 +70,7 @@ def main(args):
         t_forward=0.75,
         num_sampling_steps=15,
         cancer_types=cancer_names,
+        vae_batch_key="cancer_type",  # synthetic fixture stores label here; #106
     )
 
     dataset = ReferenceAtlasDataset(ref, cfg, registry)
