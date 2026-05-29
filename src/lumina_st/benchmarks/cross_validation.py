@@ -21,13 +21,13 @@ manuscript can report mean ± 95% CI for pan-cancer Pearson, etc.
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
 import anndata as ad
 import numpy as np
 
-from .contract import AdapterInput, AdapterResult, BaseAdapter
+from .contract import AdapterInput, BaseAdapter
 from .panels import MarkerPanel
 
 

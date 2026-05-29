@@ -34,7 +34,10 @@ class LuminaBlock(nn.Module):
         self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
 
         mlp_hidden = int(hidden_size * mlp_ratio)
-        approx_gelu = lambda: nn.GELU(approximate="tanh")
+
+        def approx_gelu() -> nn.GELU:
+            return nn.GELU(approximate="tanh")
+
         self.mlp = Mlp(hidden_size, hidden_features=mlp_hidden, act_layer=approx_gelu, drop=0)
 
         self.adaLN_modulation = nn.Sequential(
