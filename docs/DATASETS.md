@@ -152,6 +152,7 @@ all verified to load on 2026-05-28.
 | # | Dataset | Issue | Loader | Raw counts | `cancer_type` | Role |
 |---|---------|-------|--------|-----------|---------------|------|
 | B3 | Slide-seqV2 cerebellum | #68 | `sq.datasets.slideseqv2()` | ✅ raw UMI in `.X` | `UNKNOWN` | Primary **sparse** raw-count imputation target (41,786 beads × 4,000 genes). |
+| B5 | sc_mouse_cortex reference | #69 | `sq.datasets.sc_mouse_cortex()` → `adata.raw.to_adata()` | ✅ raw in `.raw` (restore to `.X`) | `UNKNOWN` | **VAE reference atlas** (not spatial → `ReferenceAtlasDataset`). CZ CELLxGENE Census = real-human-cancer upgrade path. |
 
 > **CancerRegistry note (#70):** `BRCA` and `OV` are present in
 > `configs/stpainter_registry.yaml`; `SKCM` (#66) is not. `CancerRegistry.default_pan_cancer`

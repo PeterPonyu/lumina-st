@@ -364,6 +364,29 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="Primary sparse raw-count imputation target. Loader verified in dl env "
         "(squidpy 1.6.5). Shared cache with factorgraph-st / niche-lens-st.",
     ),
+    "sc_mouse_cortex": DatasetSpec(
+        id="sc_mouse_cortex",
+        name="sc_mouse_cortex reference (B5)",
+        issues=(69,),
+        platform="scRNA-seq (no spatial coords)",
+        tissue="mouse cortex (21,697 cells x 36,826 genes)",
+        cancer_type="UNKNOWN",
+        accession="squidpy figshare mirror; CZ CELLxGENE Census (upgrade path)",
+        url="https://squidpy.readthedocs.io/en/stable/api/squidpy.datasets.sc_mouse_cortex.html",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.SQUIDPY,
+        download_artifact="squidpy.datasets.sc_mouse_cortex() -> AnnData; raw counts in .raw "
+        "(restore via adata.raw.to_adata()).",
+        citation_key="tasic2018cortex",
+        raw_count_policy="raw counts live in .raw -> MUST restore to .X / layers['counts'] "
+        "before ReferenceAtlasDataset.",
+        contract_mapping="ReferenceAtlasDataset (NOT spatial); set .obs[config.vae_batch_key]; "
+        "use single 'UNKNOWN' class for non-cancer pretraining.",
+        tier="B",
+        is_reference=True,
+        notes="Primary VAE reference atlas (latent encoder + flow). CZ CELLxGENE Census "
+        "(pip install cellxgene-census; CC BY 4.0) is the real-human-cancer upgrade path.",
+    ),
 }
 
 
