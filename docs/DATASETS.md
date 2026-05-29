@@ -136,6 +136,7 @@ hardcode a guessed `cf.10xgenomics.com/...` URL).
 
 | Dataset | Issue(s) | Panel / cells | `cancer_type` | Raw-count artifact | Why it fits LuminaST |
 |---------|----------|---------------|---------------|--------------------|----------------------|
+| Xenium Prime 5K Breast Cancer | #65, #184 | ~5,100 genes · 699,110 cells | `BRCA` | `cell_feature_matrix.h5` / `.zarr.zip` (Output Bundle) | ~16× panel vs the 313-gene #60 demo; richest Xenium panel-imputation + cross-platform breast target. |
 
 All three: `X` ← raw per-cell integer counts (drop control/negative probes); `obsm['spatial']`
 ← `(x_centroid, y_centroid)`; read via `spatialdata_io.xenium()` or scanpy on
