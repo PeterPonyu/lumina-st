@@ -21,7 +21,7 @@ import torch.nn as nn
 from torchdiffeq import odeint
 
 from ..config.lumina_config import LuminaSTConfig
-from ..flow import create_flow_transport, FlowSampler
+from ..flow import create_flow_transport, FlowSampler, validate_guidance_scale
 from ..models.lumina_transformer import LuminaTransformer
 
 # Fixed-step solvers integrate the guided drift with an explicit hand-written
@@ -135,6 +135,7 @@ class LuminaFlowModule(pl.LightningModule):
             torch.manual_seed(seed)
 
         cfg_scale = cfg_scale if cfg_scale is not None else self.config.guidance_scale
+        cfg_scale = validate_guidance_scale(cfg_scale)
         t_forward = t_forward if t_forward is not None else self.config.t_forward
 
         self.ema_model.eval()
