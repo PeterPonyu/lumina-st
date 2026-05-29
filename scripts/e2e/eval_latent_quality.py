@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import argparse
 import json
@@ -43,8 +44,10 @@ def main(args):
     device = get_device()
     print(f"Using device: {device}")
 
-    # 1. Generate or Load Data
-    DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "baselines" / "stpainter"
+    # 1. Generate or Load Data. Configurable baseline root (#121); default is
+    # data/baselines/reference under the repo. Override with LUMINA_BASELINE_ROOT.
+    _default_root = Path(__file__).resolve().parents[2] / "data" / "baselines" / "reference"
+    DATA_ROOT = Path(os.environ.get("LUMINA_BASELINE_ROOT", str(_default_root)))
     if DATA_ROOT.exists() and any(
         (DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")
     ):
