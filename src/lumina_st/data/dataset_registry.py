@@ -121,6 +121,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Smallest cancer ST -> fast smoke target for held-out-gene recovery.",
     ),
+    "visiumhd_crc": DatasetSpec(
+        id="visiumhd_crc",
+        name="Visium HD CRC",
+        issues=(56,),
+        platform="Visium HD (8 um bins)",
+        tissue="colorectal cancer",
+        cancer_type="COAD",
+        accession="10x Genomics dataset page",
+        url="https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="Visium_HD_Human_Colon_Cancer_binned_outputs.tar.gz (15.9 GB) "
+        "-> square_008um/filtered_feature_bc_matrix.h5",
+        citation_key="10x_visiumhd_crc",
+        raw_count_policy="raw UMIs in square_008um/filtered_feature_bc_matrix.h5.",
+        contract_mapping="SpatialTranscriptomicsDataset @ 8 um bins; .obs['cancer_type']='COAD'.",
+        tier="A",
+        notes="Flagship high-resolution COAD target. Pull binned_outputs.tar.gz from the "
+        "page; do NOT hardcode a guessed cf.10xgenomics.com h5 hotlink (caveat #1).",
+    ),
 }
 
 
