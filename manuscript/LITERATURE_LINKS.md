@@ -20,6 +20,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_xenium_skin` | Xenium Human Skin (377-gene) | #59 | 10x Genomics dataset — [Human Skin, Xenium Multi-Tissue & Cancer Panel](https://www.10xgenomics.com/datasets/human-skin-data-xenium-human-multi-tissue-and-cancer-panel) · ⚠️ UNVERIFIED hotlink (page link 404s; correct page adds `-1-standard`) |
 | `janesick2023xenium` | Xenium Breast Cancer (Janesick) | #60 | Janesick et al., *High resolution mapping of the tumor microenvironment using integrated single-cell, spatial and in situ analysis*, Nat. Commun. 2023 — [doi:10.1038/s41467-023-43458-x](https://doi.org/10.1038/s41467-023-43458-x); demo: 10x `Xenium_V1_human_Breast` |
 | `maynard2021dlpfc` | DLPFC 12-sample Visium (spatialLIBD) | #62 | Maynard et al., *Transcriptome-scale spatial gene expression in the human dorsolateral prefrontal cortex*, Nat. Neurosci. 2021 — [doi:10.1038/s41593-020-00787-0](https://doi.org/10.1038/s41593-020-00787-0); pkg: [spatialLIBD](https://research.libd.org/spatialLIBD/) |
+| `10x_cytassist_ffpe_breast` | Visium CytAssist FFPE Breast | #63 | 10x Genomics dataset — [Human Breast Cancer, CytAssist FFPE (2-standard)](https://www.10xgenomics.com/datasets/gene-and-protein-expression-library-of-human-breast-cancer-cytassist-ffpe-2-standard) |
 
 ## Related infrastructure
 
