@@ -387,6 +387,28 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="Primary VAE reference atlas (latent encoder + flow). CZ CELLxGENE Census "
         "(pip install cellxgene-census; CC BY 4.0) is the real-human-cancer upgrade path.",
     ),
+    "visium_breast_cancer_b6": DatasetSpec(
+        id="visium_breast_cancer_b6",
+        name="Visium breast cancer Block A Sections 1 & 2 (B6)",
+        issues=(70,),
+        platform="10x Visium (spot)",
+        tissue="breast cancer (~3,798 spots x 36,601 genes per section; 2 serial sections)",
+        cancer_type="BRCA",
+        accession="10x V1_Breast_Cancer_Block_A_Section_1 / _Section_2 (scanpy visium_sge)",
+        url="https://www.10xgenomics.com/datasets/human-breast-cancer-block-a-section-1-1-standard-1-1-0",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.SCANPY,
+        download_artifact="scanpy.datasets.visium_sge('V1_Breast_Cancer_Block_A_Section_1' / "
+        "'..._Section_2') -> AnnData (raw UMI in .X)",
+        citation_key="10x_visium_breast_block_a",
+        raw_count_policy="raw UMI already in .X; no restore needed.",
+        contract_mapping="SpatialTranscriptomicsDataset; spot coords -> .obsm['spatial']; "
+        ".obs['cancer_type']='BRCA' (token present in configs/stpainter_registry.yaml; "
+        "default_pan_cancer falls back to UNKNOWN).",
+        tier="B",
+        notes="Real cancer ST target; two serial sections -> paired-slice experiments. "
+        "Loader verified in dl env (scanpy 1.10.4). Shared anchor with aether-3d / factorgraph-st.",
+    ),
 }
 
 

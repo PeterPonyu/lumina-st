@@ -27,6 +27,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_xenium_prime_ovarian` | Xenium Prime 5K Ovarian | #67, #184 | 10x Genomics dataset — [Xenium Prime FFPE Human Ovarian Cancer](https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-ovarian-cancer) · ⚠️ UNVERIFIED Output-Bundle hotlink |
 | `stickels2021slideseqv2` | Slide-seqV2 cerebellum (B3) | #68 | Stickels et al., *Highly sensitive spatial transcriptomics at near-cellular resolution with Slide-seqV2*, Nat. Biotechnol. 2021 — [doi:10.1038/s41587-020-0739-1](https://doi.org/10.1038/s41587-020-0739-1); mirror: squidpy figshare 28242783 |
 | `tasic2018cortex` | sc_mouse_cortex reference (B5) | #69 | Tasic et al., *Shared and distinct transcriptomic cell types across neocortical areas*, Nature 2018 — [doi:10.1038/s41586-018-0654-5](https://doi.org/10.1038/s41586-018-0654-5); mirror: squidpy figshare. Upgrade path: [CZ CELLxGENE Census](https://chanzuckerberg.github.io/cellxgene-census/) (CC BY 4.0) |
+| `10x_visium_breast_block_a` | Visium Breast Cancer Block A (B6) | #70 | 10x Genomics dataset — [Human Breast Cancer Block A Section 1](https://www.10xgenomics.com/datasets/human-breast-cancer-block-a-section-1-1-standard-1-1-0) (+ Section 2); via `scanpy.datasets.visium_sge` |
 
 ## Related infrastructure
 
