@@ -279,6 +279,28 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="Same-tissue multi-resolution breast (legacy ST <-> Visium <-> HD <-> Xenium). "
         "Use binned_outputs.tar.gz, not a guessed h5 hotlink.",
     ),
+    "xenium_prime_breast": DatasetSpec(
+        id="xenium_prime_breast",
+        name="Xenium Prime 5K Human Breast Cancer (~5,100-gene panel)",
+        issues=(65, 184),
+        platform="Xenium Prime (single-cell)",
+        tissue="breast cancer (FFPE; 699,110 cells)",
+        cancer_type="BRCA",
+        accession="10x Xenium Prime FFPE Human Breast Cancer (2024-10-24, XOA v3.x)",
+        url="https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-breast-cancer",
+        url_status=UrlStatus.UNVERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="cell_feature_matrix.zarr.zip (subset) / cell_feature_matrix.h5 "
+        "(full Output Bundle .zip) — confirm filename on Download tab",
+        citation_key="10x_xenium_prime_breast",
+        raw_count_policy="raw per-cell integer counts; keep genes only (drop control/negative "
+        "probes); read via spatialdata_io.xenium() or scanpy on cell_feature_matrix.h5.",
+        contract_mapping="SpatialTranscriptomicsDataset; (x_centroid,y_centroid)->.obsm['spatial']; "
+        ".obs['cancer_type']='BRCA'.",
+        tier="A",
+        notes="UNVERIFIED Output-Bundle hotlink — pull from Download tab. ~16x panel vs #60. "
+        "Part of the Prime 5K cohort (#184).",
+    ),
 }
 
 
