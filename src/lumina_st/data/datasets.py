@@ -1,7 +1,7 @@
 """
 LuminaST Data handling — AnnData native datasets.
 
-Replaces the original stPainter data/dataset.py with a cleaner, more
+Replaces the original baseline data/dataset.py with a cleaner, more
 extensible design that works directly with scanpy/anndata objects and
 the new CancerRegistry.
 """
