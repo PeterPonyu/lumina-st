@@ -179,6 +179,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Immune-rich HD slice. Registry size estimate (2-4 GB) is far too low (17.4 GB).",
     ),
+    "xenium_skin": DatasetSpec(
+        id="xenium_skin",
+        name="Xenium Human Skin (377-gene panel)",
+        issues=(59,),
+        platform="Xenium",
+        tissue="skin (multi-tissue + cancer panel; non-diseased)",
+        cancer_type="UNKNOWN",
+        accession="10x Genomics dataset page (377-gene panel)",
+        url="https://www.10xgenomics.com/datasets/human-skin-data-xenium-human-multi-tissue-and-cancer-panel",
+        url_status=UrlStatus.UNVERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="cell_feature_matrix.h5 inside ..._outs.zip (raw per-cell counts)",
+        citation_key="10x_xenium_skin",
+        raw_count_policy="raw per-cell counts in cell_feature_matrix.h5; drop control/negative probes.",
+        contract_mapping="SpatialTranscriptomicsDataset; per-cell centroids -> .obsm['spatial']; "
+        ".obs['cancer_type']='UNKNOWN' (sample is non-diseased skin).",
+        tier="A",
+        notes="UNVERIFIED hotlink (caveat #2): the registry page link 404s; the correct page "
+        "adds the '-1-standard' suffix. Resolve from the Download tab. Upgraded by #66.",
+    ),
 }
 
 
