@@ -239,6 +239,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Gold-standard manual-layer imputation benchmark (layer-ARI, held-out-gene recovery).",
     ),
+    "cytassist_ffpe_breast": DatasetSpec(
+        id="cytassist_ffpe_breast",
+        name="Visium CytAssist FFPE Human Breast Cancer",
+        issues=(63,),
+        platform="Visium CytAssist (FFPE, spot)",
+        tissue="breast cancer",
+        cancer_type="BRCA",
+        accession="10x CytAssist_FFPE_Human_Breast_Cancer (Space Ranger v2.0.0)",
+        url="https://cf.10xgenomics.com/samples/spatial-exp/2.0.0/CytAssist_FFPE_Human_Breast_Cancer/CytAssist_FFPE_Human_Breast_Cancer_filtered_feature_bc_matrix.h5",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.HTTP,
+        download_artifact="CytAssist_FFPE_Human_Breast_Cancer_filtered_feature_bc_matrix.h5 "
+        "(33 MB, HTTP 200) + ..._spatial.tar.gz (34.5 MB)",
+        citation_key="10x_cytassist_ffpe_breast",
+        raw_count_policy="raw integer UMI feature-barcode matrix; histology via _spatial.tar.gz.",
+        contract_mapping="SpatialTranscriptomicsDataset; coords from _spatial.tar.gz -> "
+        ".obsm['spatial']; .obs['cancer_type']='BRCA'.",
+        tier="A",
+        notes="Lowest-friction Visium breast target (direct .h5, no bin-unpacking).",
+    ),
 }
 
 
