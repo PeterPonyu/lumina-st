@@ -15,6 +15,13 @@ import torch.nn.functional as F
 
 from .vae_interface import LatentEncoder
 
+# Clamp the encoder log-variance before exponentiation. Without this an
+# unconstrained ``logvar`` (easily reached early in training or on a degenerate
+# batch) overflows ``exp()`` to ``inf``, making both the reparameterized sample
+# and the KL term non-finite. The range matches common VAE practice.
+LOGVAR_MIN = -30.0
+LOGVAR_MAX = 20.0
+
 
 class TinyVAE(LatentEncoder):
     def __init__(self, input_dim: int, latent_dim: int, hidden: int = 256):
@@ -44,7 +51,7 @@ class TinyVAE(LatentEncoder):
     def encode_to_latent(self, x: torch.Tensor, y: torch.Tensor = None):
         h = self.enc(x)
         mu = self.mu(h)
-        logvar = self.logvar(h)
+        logvar = self.logvar(h).clamp(LOGVAR_MIN, LOGVAR_MAX)
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         z = mu + eps * std
