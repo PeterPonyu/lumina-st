@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
+import os
 import scanpy as sc
 from pathlib import Path
 from lumina_st.core.lumina_imputer import LuminaImputer
 
+# Baseline asset locations are configurable so the script is portable and does
+# not bake in a specific on-disk baseline layout (issue #121). Override with the
+# LUMINA_BASELINE_ROOT / LUMINA_CANCER_REGISTRY environment variables.
+BASELINE_ROOT = os.environ.get("LUMINA_BASELINE_ROOT", "data/baselines/reference")
+REGISTRY_PATH = os.environ.get("LUMINA_CANCER_REGISTRY", "configs/cancer_registry.yaml")
+
+
 def main():
     print("=== Testing Baseline Checkpoint Loading and Imputation ===")
-    
+
     # 1. Paths to checkpoints and data
-    vae_path = "data/baselines/st_impute_ref/checkpoint/vae_50.ckpt"
-    diff_path = "data/baselines/st_impute_ref/checkpoint/diffusion_50.ckpt"
-    registry_path = "configs/stpainter_registry.yaml"
-    data_path = "data/baselines/st_impute_ref/processed_data/st_CESC_test.h5ad"
-    
+    vae_path = f"{BASELINE_ROOT}/checkpoint/vae_50.ckpt"
+    diff_path = f"{BASELINE_ROOT}/checkpoint/diffusion_50.ckpt"
+    registry_path = REGISTRY_PATH
+    data_path = f"{BASELINE_ROOT}/processed_data/st_CESC_test.h5ad"
+
     if not Path(vae_path).exists() or not Path(diff_path).exists():
         print(
             "[ERROR] Baseline checkpoints not found. "
             "Run `lumina download --cancer-type CESC --output-dir "
-            "data/baselines/st_impute_ref/checkpoint` first, or provide local baseline files."
+            f"{BASELINE_ROOT}/checkpoint` first, or provide local baseline files."
         )
         return 1
 

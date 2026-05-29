@@ -2,7 +2,7 @@
 Configurable cancer / condition registry for LuminaST.
 
 Replaces the hard-coded TUMOR_TO_IDX dictionary that was scattered across
-the original stPainter code. Now fully data-driven via YAML/JSON so that
+the original baseline code. Now fully data-driven via YAML/JSON so that
 new tumor types can be added without touching source code.
 """
 

@@ -62,18 +62,22 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     
-    # 1. Paths
-    vae_path = "data/baselines/st_impute_ref/checkpoint/vae_50.ckpt"
-    diff_path = "data/baselines/st_impute_ref/checkpoint/diffusion_50.ckpt"
-    registry_path = "configs/stpainter_registry.yaml"
-    data_path = "data/baselines/st_impute_ref/processed_data/st_CESC_test.h5ad"
-    sparsity_path = "data/baselines/st_impute_ref/processed_data/gene_sparsity_ratio.csv"
-    
+    # 1. Paths. Baseline asset locations are configurable so the audit script is
+    # portable and does not bake in a specific on-disk baseline layout (#121).
+    # Override with LUMINA_BASELINE_ROOT / LUMINA_CANCER_REGISTRY env vars.
+    baseline_root = os.environ.get("LUMINA_BASELINE_ROOT", "data/baselines/reference")
+    processed_root = f"{baseline_root}/processed_data"
+    vae_path = f"{baseline_root}/checkpoint/vae_50.ckpt"
+    diff_path = f"{baseline_root}/checkpoint/diffusion_50.ckpt"
+    registry_path = os.environ.get("LUMINA_CANCER_REGISTRY", "configs/cancer_registry.yaml")
+    data_path = f"{processed_root}/st_CESC_test.h5ad"
+    sparsity_path = f"{processed_root}/gene_sparsity_ratio.csv"
+
     # 2. Subset data for faster run and save to temp file
     print("Preparing 500-cell subset...")
     adata = sc.read_h5ad(data_path)
     adata_sub = adata[:500].copy()
-    temp_sub_path = "data/baselines/st_impute_ref/processed_data/st_CESC_test_sub500.h5ad"
+    temp_sub_path = f"{processed_root}/st_CESC_test_sub500.h5ad"
     adata_sub.write(temp_sub_path)
     
     # 3. RUN ORIGINAL BASELINE
@@ -99,7 +103,7 @@ def main():
         batch_size=500,
         t_forward=0.9,
         input_path=temp_sub_path,
-        output_path="data/baselines/st_impute_ref/processed_data/st_CESC_imputed_baseline.h5ad",
+        output_path=f"{processed_root}/st_CESC_imputed_baseline.h5ad",
         cancer_type="CESC",
         gene_sparsity_ratio_file_path=sparsity_path,
         mode="ODE",
@@ -307,7 +311,7 @@ def main():
         os.remove(temp_sub_path)
         
     print("Public clean-up of temporary files...")
-    temp_base_out = "data/baselines/st_impute_ref/processed_data/st_CESC_imputed_baseline.h5ad"
+    temp_base_out = f"{processed_root}/st_CESC_imputed_baseline.h5ad"
     if os.path.exists(temp_base_out):
         os.remove(temp_base_out)
         

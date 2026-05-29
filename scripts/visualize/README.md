@@ -7,7 +7,7 @@ discovery — for both synthetic and on-disk baseline data. No online downloads.
 ## Run
 
 ```bash
-# both synthetic + real (real uses local baselines under data/baselines/st_impute_ref/)
+# both synthetic + real (real uses local baselines under $LUMINA_BASELINE_ROOT, default data/baselines/reference/)
 conda run --no-capture-output -n dl python scripts/visualize/biology_figures.py --mode all
 
 # synthetic only (uses the existing benchmark sweep output)
