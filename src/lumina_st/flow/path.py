@@ -41,10 +41,13 @@ PathName = Literal["linear", "gvp", "vp"]
 # identical to aether-3d #136 (shared cross-repo fix template).
 EPS_ALPHA = 1e-6
 
-# Boundary epsilon for the velocity<->score / velocity<->noise conversions.
-# At t in {0, 1} the conversion denominators (``var``) and the ``ratio = a/da``
-# factor collapse to 0 or blow up, depending on the path family. Shared with
-# the aether-3d PR for #135 (cross-repo velocity-score cluster); both repos
+# Boundary epsilon for path-endpoint numerics. Two collapse modes at t in {0, 1}:
+#   * velocity<->score / velocity<->noise conversions — the denominators
+#     (``var``) and the ``ratio = a/da`` factor collapse to 0 or blow up,
+#     depending on the path family (PR #157, issue #122 cluster).
+#   * VPPath.sigma's denominator collapses (``-2*s`` -> 0) and the radicand can
+#     dip negative, producing inf/NaN that propagate into training.
+# Shared with aether-3d #135 (cross-repo velocity-score cluster); both repos
 # must use the same constant and clamp shape so the fix is identical.
 EPS_BOUNDARY = 1e-6
 
@@ -54,7 +57,8 @@ def _safe_floor(x: torch.Tensor, eps: float = EPS_BOUNDARY) -> torch.Tensor:
 
     Preserves the sign of ``x``; uses +eps when ``x`` is exactly 0. Avoids
     the sign-flip that ``torch.clamp(x, min=eps)`` would inflict on values
-    that are negative by construction (e.g. ``var`` in ``velocity_to_noise``).
+    that are negative by construction (e.g. ``var`` in ``velocity_to_noise``,
+    or ``ds`` for VP/GVP at large t).
     """
     return torch.where(
         x.abs() > eps,
@@ -234,9 +238,16 @@ class VPPath(InterpolationPath):
         return a, da
 
     def sigma(self, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Issue #125: at t=1 ``log_a -> 0`` so ``1 - exp(2*log_a) -> 0`` makes
+        # ``s -> 0`` and the ``/-2*s`` divisor blows up. Numerical roundoff can
+        # also drive the radicand slightly negative, which makes ``sqrt``
+        # return NaN. Sign-preserving floors on both the radicand and the
+        # divisor keep ``sigma`` and its derivative finite at the boundary
+        # while staying a no-op in the interior.
         log_a = self._log_mean(t)
-        s = torch.sqrt(1 - torch.exp(2 * log_a))
-        ds = torch.exp(2 * log_a) * 2 * self._d_log_mean(t) / (-2 * s)
+        radicand = (1 - torch.exp(2 * log_a)).clamp_min(EPS_BOUNDARY)
+        s = torch.sqrt(radicand)
+        ds = torch.exp(2 * log_a) * 2 * self._d_log_mean(t) / (-2 * _safe_floor(s))
         return s, ds
 
 

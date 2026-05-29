@@ -21,6 +21,7 @@ judge whether the model is learning something useful.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 import numpy as np
@@ -69,10 +70,12 @@ def main(args):
 
     # === Smart data source selection ===
     # Priority: 1. Explicit --reference / --target
-    #           2. Real baseline data from labs/data/baselines/stpainter/ (if present)
+    #           2. Real baseline data under LUMINA_BASELINE_ROOT (if present)
     #           3. High-quality synthetic data (always works)
-
-    DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "baselines" / "stpainter"
+    # The baseline root is configurable (#121) so the script is not tied to a
+    # specific on-disk layout; default is data/baselines/reference under the repo.
+    _default_root = Path(__file__).resolve().parents[2] / "data" / "baselines" / "reference"
+    DATA_ROOT = Path(os.environ.get("LUMINA_BASELINE_ROOT", str(_default_root)))
 
     if args.reference and args.target:
         ref = sc.read_h5ad(args.reference)
