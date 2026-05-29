@@ -17,6 +17,7 @@ Source paper / portal for every dataset enumerated in
 | `10x_visiumhd_crc` | Visium HD CRC | #56 | 10x Genomics dataset — [Visium HD CytAssist, Human CRC](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-human-crc) |
 | `10x_visiumhd_mousebrain` | Visium HD Mouse Brain | #57 | 10x Genomics dataset — [Visium HD CytAssist, Mouse Brain (H&E)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-of-mouse-brain-he) |
 | `10x_visiumhd_tonsil` | Visium HD Tonsil | #58 | 10x Genomics dataset — [Visium HD CytAssist, Human Tonsil (FF)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-human-tonsil-fresh-frozen) |
+| `10x_xenium_skin` | Xenium Human Skin (377-gene) | #59 | 10x Genomics dataset — [Human Skin, Xenium Multi-Tissue & Cancer Panel](https://www.10xgenomics.com/datasets/human-skin-data-xenium-human-multi-tissue-and-cancer-panel) · ⚠️ UNVERIFIED hotlink (page link 404s; correct page adds `-1-standard`) |
 
 ## Related infrastructure
 
