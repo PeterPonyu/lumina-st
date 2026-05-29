@@ -219,6 +219,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Canonical Xenium breast demo. Upgraded to 5K panel by #65.",
     ),
+    "dlpfc_maynard2021": DatasetSpec(
+        id="dlpfc_maynard2021",
+        name="DLPFC 12-sample Visium (Maynard 2021 / spatialLIBD)",
+        issues=(62,),
+        platform="Visium v1 (spot)",
+        tissue="human DLPFC (non-diseased brain); manual L1-L6 + WM labels",
+        cancer_type="UNKNOWN",
+        accession="Maynard 2021 Nat. Neurosci. (DOI 10.1038/s41593-020-00787-0); spatialLIBD",
+        url="https://research.libd.org/spatialLIBD/",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="spatialLIBD::fetch_data('spe') -> SpatialExperiment (counts assay = "
+        "raw integer UMIs); convert SPE->AnnData via zellkonverter/anndata2ri.",
+        citation_key="maynard2021dlpfc",
+        raw_count_policy="counts assay = raw integer UMIs; use it, not logcounts.",
+        contract_mapping="SpatialTranscriptomicsDataset; spatialCoords()->.obsm['spatial']; "
+        "manual layer label in .obs; .obs['cancer_type']='UNKNOWN'.",
+        tier="A",
+        notes="Gold-standard manual-layer imputation benchmark (layer-ARI, held-out-gene recovery).",
+    ),
 }
 
 
