@@ -301,6 +301,28 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         notes="UNVERIFIED Output-Bundle hotlink — pull from Download tab. ~16x panel vs #60. "
         "Part of the Prime 5K cohort (#184).",
     ),
+    "xenium_prime_skin_melanoma": DatasetSpec(
+        id="xenium_prime_skin_melanoma",
+        name="Xenium Prime 5K Human Skin / Dermal Melanoma (5,006-gene panel)",
+        issues=(66, 184),
+        platform="Xenium Prime (single-cell)",
+        tissue="primary dermal melanoma (FFPE; 112,551 cells)",
+        cancer_type="SKCM",
+        accession="10x Xenium Prime FFPE Human Skin (2024-07-31, PREVIEW DATA)",
+        url="https://www.10xgenomics.com/datasets/xenium-prime-ffpe-human-skin",
+        url_status=UrlStatus.UNVERIFIED,
+        loader=LoaderKind.PAGE_BUNDLE,
+        download_artifact="cell_feature_matrix.zarr.zip (subset) / cell_feature_matrix.h5 "
+        "(full Output Bundle .zip) — confirm filename on Download tab",
+        citation_key="10x_xenium_prime_skin",
+        raw_count_policy="raw per-cell integer counts; keep genes only (5 genes excluded in dev "
+        "panel: ADGRG1, NMBR, OSMR, OSTF1, RGS8). Verify Preview bundle completeness first.",
+        contract_mapping="SpatialTranscriptomicsDataset; (x_centroid,y_centroid)->.obsm['spatial']; "
+        ".obs['cancer_type']='SKCM' (requires registry config; UNKNOWN fallback otherwise).",
+        tier="A",
+        notes="PREVIEW DATA + UNVERIFIED hotlink. Real melanoma upgrade of non-diseased #59. "
+        "Part of the Prime 5K cohort (#184). SKCM is not in default_pan_cancer.",
+    ),
 }
 
 
