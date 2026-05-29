@@ -23,20 +23,44 @@ class EnhancementEvaluator:
         self.adata = adata
         self.gt_layer = gt_layer
 
+    def _reference(self):
+        """Return the reference matrix for correlation scoring.
+
+        When ``gt_layer`` is set and present, scores are computed against
+        ``adata.layers[gt_layer]`` (ground truth). Otherwise falls back to
+        ``adata.X`` (self-consistency baseline).
+        """
+        if self.gt_layer is not None:
+            if self.gt_layer not in self.adata.layers:
+                raise KeyError(
+                    f"gt_layer={self.gt_layer!r} requested but not present in adata.layers; "
+                    f"available: {list(self.adata.layers.keys())}"
+                )
+            ref = self.adata.layers[self.gt_layer]
+        else:
+            ref = self.adata.X
+        return ref.toarray() if hasattr(ref, "toarray") else ref
+
     def run_gene_metrics(self) -> Dict[str, float]:
-        """Pearson / Spearman correlation between imputed and observed (or ground truth)."""
+        """Pearson / Spearman correlation between imputed and reference.
+
+        Reference is ``adata.layers[gt_layer]`` when ``gt_layer`` is provided,
+        else ``adata.X``. Passing ``gt_layer`` is required for meaningful
+        held-out-gene evaluation; without it, the metric measures
+        imputed-vs-observed self-consistency only.
+        """
         if "imputed" not in self.adata.layers:
             return {"error": "No 'imputed' layer found"}
 
         imputed = self.adata.layers["imputed"]
-        observed = self.adata.X.toarray() if hasattr(self.adata.X, "toarray") else self.adata.X
+        reference = self._reference()
 
         # Simple per-gene correlation (mean across genes)
         p = []
         s = []
         for g in range(imputed.shape[1]):
-            p.append(pearsonr(imputed[:, g], observed[:, g])[0])
-            s.append(spearmanr(imputed[:, g], observed[:, g])[0])
+            p.append(pearsonr(imputed[:, g], reference[:, g])[0])
+            s.append(spearmanr(imputed[:, g], reference[:, g])[0])
 
         return {
             "mean_pearson": float(np.nanmean(p)),
