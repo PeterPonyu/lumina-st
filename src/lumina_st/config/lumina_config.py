@@ -82,7 +82,13 @@ class LuminaSTConfig(BaseModel):
     # Sampling / Imputation (inference)
     # ------------------------------------------------------------------
     guidance_scale: float = 3.0
-    t_forward: float = 0.9  # how far to noise the observed genes before denoising
+    # Forward integration start time on the path. Convention (LinearPath): t=1 is
+    # data, t=0 is noise; ``t_forward`` is therefore the *data fraction* kept in
+    # the noised state z_t = alpha(t)*z + sigma(t)*x0. With t_forward=0.5 the
+    # observed latent is half-noised before the reverse ODE reintegrates it —
+    # the historical default 0.9 only displaced z by ~10% and produced a
+    # near-identity "enhancement". See issue #148.
+    t_forward: float = 0.5
     sampling_method: str = "dopri5"
     num_sampling_steps: int = 50
     atol: float = 1e-5
