@@ -259,6 +259,26 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         tier="A",
         notes="Lowest-friction Visium breast target (direct .h5, no bin-unpacking).",
     ),
+    "visiumhd_breast": DatasetSpec(
+        id="visiumhd_breast",
+        name="Visium HD Human Breast Cancer (FFPE, IF)",
+        issues=(64,),
+        platform="Visium HD (8 um bins)",
+        tissue="breast cancer (FFPE)",
+        cancer_type="BRCA",
+        accession="10x Visium_HD_Human_Breast_Cancer_FFPE (Space Ranger v3.1.2)",
+        url="https://cf.10xgenomics.com/samples/spatial-exp/3.1.2/Visium_HD_Human_Breast_Cancer_FFPE/Visium_HD_Human_Breast_Cancer_FFPE_binned_outputs.tar.gz",
+        url_status=UrlStatus.VERIFIED,
+        loader=LoaderKind.HTTP,
+        download_artifact="Visium_HD_Human_Breast_Cancer_FFPE_binned_outputs.tar.gz (6.75 GB) "
+        "-> binned_outputs/square_008um/filtered_feature_bc_matrix.h5",
+        citation_key="10x_visiumhd_breast",
+        raw_count_policy="raw integer UMIs in square_008um/filtered_feature_bc_matrix.h5.",
+        contract_mapping="SpatialTranscriptomicsDataset @ 8 um bins; .obs['cancer_type']='BRCA'.",
+        tier="A",
+        notes="Same-tissue multi-resolution breast (legacy ST <-> Visium <-> HD <-> Xenium). "
+        "Use binned_outputs.tar.gz, not a guessed h5 hotlink.",
+    ),
 }
 
 

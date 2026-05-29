@@ -21,6 +21,7 @@ Source paper / portal for every dataset enumerated in
 | `janesick2023xenium` | Xenium Breast Cancer (Janesick) | #60 | Janesick et al., *High resolution mapping of the tumor microenvironment using integrated single-cell, spatial and in situ analysis*, Nat. Commun. 2023 — [doi:10.1038/s41467-023-43458-x](https://doi.org/10.1038/s41467-023-43458-x); demo: 10x `Xenium_V1_human_Breast` |
 | `maynard2021dlpfc` | DLPFC 12-sample Visium (spatialLIBD) | #62 | Maynard et al., *Transcriptome-scale spatial gene expression in the human dorsolateral prefrontal cortex*, Nat. Neurosci. 2021 — [doi:10.1038/s41593-020-00787-0](https://doi.org/10.1038/s41593-020-00787-0); pkg: [spatialLIBD](https://research.libd.org/spatialLIBD/) |
 | `10x_cytassist_ffpe_breast` | Visium CytAssist FFPE Breast | #63 | 10x Genomics dataset — [Human Breast Cancer, CytAssist FFPE (2-standard)](https://www.10xgenomics.com/datasets/gene-and-protein-expression-library-of-human-breast-cancer-cytassist-ffpe-2-standard) |
+| `10x_visiumhd_breast` | Visium HD Breast Cancer FFPE | #64 | 10x Genomics dataset — [Visium HD, Human Breast Cancer FFPE (IF)](https://www.10xgenomics.com/datasets/visium-hd-cytassist-gene-expression-libraries-human-breast-cancer-ffpe-if) |
 
 ## Related infrastructure
 
