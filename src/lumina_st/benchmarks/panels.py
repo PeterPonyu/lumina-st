@@ -36,10 +36,15 @@ TME_IMMUNE_STROMAL = MarkerPanel(
 
 VASCULAR_3D = MarkerPanel(
     name="vascular-3d",
-    genes=("CD3D", "CD20", "CK5", "CD31"),
+    # HGNC-approved symbols only (issue #107). Prior values CD20, CK5 and
+    # CD31 were aliases/common names, not approved symbols, so they failed to
+    # match var_names from HGNC-annotated references:
+    #   CD20 -> MS4A1, CK5 -> KRT5, CD31 -> PECAM1. CD3D is already approved.
+    genes=("CD3D", "MS4A1", "KRT5", "PECAM1"),
     description=(
-        "T/B/epithelial/endothelial markers used for 3D vascular-network "
-        "continuity validation in the Aether3D track."
+        "T/B/epithelial/endothelial markers (CD3D, MS4A1/CD20, KRT5/CK5, "
+        "PECAM1/CD31) used for 3D vascular-network continuity validation in "
+        "the Aether3D track. All symbols are HGNC-approved."
     ),
 )
 

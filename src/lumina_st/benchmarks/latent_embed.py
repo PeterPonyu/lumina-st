@@ -12,6 +12,7 @@ back to PCA on a centered matrix. Both paths are deterministic given
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -21,6 +22,9 @@ __all__ = [
     "latent_umap",
     "latent_pca",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def latent_pca(
@@ -75,7 +79,18 @@ def latent_umap(
     Returns:
         ``{"embedding": (N, n_components) array,
            "method": "umap" or "pca-fallback",
+           "fallback_reason": str or None,  # set when UMAP failed at runtime
            "n_neighbors": ..., "min_dist": ..., "random_state": ...}``.
+
+    Fallback policy:
+        * ``ImportError`` (``umap-learn`` not installed) → silent PCA
+          fallback. This is the documented "umap not available" path.
+        * Any other exception raised by UMAP at construction or fit time
+          → log a ``WARNING`` with the exception type+message and fall
+          back to PCA. ``fallback_reason`` records the same string so
+          callers (and any AnnData ``.uns["latent_umap_method"]``
+          provenance recorded by them) can tell "umap missing" apart
+          from "umap crashed".
     """
     x = np.asarray(latent_matrix, dtype=np.float64)
     if x.ndim != 2:
@@ -85,27 +100,45 @@ def latent_umap(
     if min_dist < 0:
         raise ValueError(f"min_dist must be >= 0, got {min_dist}")
 
+    fallback_reason: str | None = None
     try:
         import umap  # type: ignore[import-untyped]
-        reducer = umap.UMAP(
-            n_components=n_components,
-            n_neighbors=min(n_neighbors, max(2, x.shape[0] - 1)),
-            min_dist=min_dist,
-            random_state=random_state,
-        )
-        embedding = reducer.fit_transform(x)
-        return {
-            "embedding": np.asarray(embedding, dtype=np.float64),
-            "method": "umap",
-            "n_neighbors": n_neighbors,
-            "min_dist": min_dist,
-            "random_state": random_state,
-        }
-    except (ImportError, Exception):
-        return {
-            "embedding": latent_pca(x, n_components=n_components),
-            "method": "pca-fallback",
-            "n_neighbors": n_neighbors,
-            "min_dist": min_dist,
-            "random_state": random_state,
-        }
+    except ImportError:
+        fallback_reason = None  # silent: umap-learn not installed
+    else:
+        try:
+            reducer = umap.UMAP(
+                n_components=n_components,
+                n_neighbors=min(n_neighbors, max(2, x.shape[0] - 1)),
+                min_dist=min_dist,
+                random_state=random_state,
+            )
+            embedding = reducer.fit_transform(x)
+        except Exception as exc:
+            # Real UMAP failure (not a missing dependency): record the
+            # exception type+message in both the log and the returned
+            # dict so provenance is preserved instead of silently lying
+            # that everything was fine.
+            fallback_reason = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "latent_umap: UMAP failed (%s); falling back to deterministic PCA.",
+                fallback_reason,
+            )
+        else:
+            return {
+                "embedding": np.asarray(embedding, dtype=np.float64),
+                "method": "umap",
+                "fallback_reason": None,
+                "n_neighbors": n_neighbors,
+                "min_dist": min_dist,
+                "random_state": random_state,
+            }
+
+    return {
+        "embedding": latent_pca(x, n_components=n_components),
+        "method": "pca-fallback",
+        "fallback_reason": fallback_reason,
+        "n_neighbors": n_neighbors,
+        "min_dist": min_dist,
+        "random_state": random_state,
+    }

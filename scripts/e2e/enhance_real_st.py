@@ -21,7 +21,9 @@ judge whether the model is learning something useful.
 """
 
 import argparse
+import os
 import sys
+import time
 from pathlib import Path
 import numpy as np
 import scanpy as sc
@@ -36,7 +38,7 @@ from lumina_st.modules.lumina_flow_module import LuminaFlowModule  # noqa: E402
 from lumina_st.core.lumina_imputer import LuminaImputer  # noqa: E402
 from lumina_st.data.datasets import ReferenceAtlasDataset  # noqa: E402
 from lumina_st.data.cancer_registry import CancerRegistry  # noqa: E402
-from lumina_st.metrics.enhancement_evaluator import EnhancementEvaluator  # noqa: E402
+from lumina_st import results_contract  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -63,20 +65,136 @@ def get_device() -> torch.device:
         return torch.device("cpu")
 
 
+def _pearson_per_column(pred: np.ndarray, obs: np.ndarray) -> np.ndarray:
+    """Vectorized per-column Pearson r between two (n_cells, n_cols) matrices.
+
+    Columns with zero variance in either array yield NaN (excluded downstream
+    via nanmean/nanmedian).
+    """
+    pred = np.asarray(pred, dtype=np.float64)
+    obs = np.asarray(obs, dtype=np.float64)
+    pc = pred - pred.mean(axis=0, keepdims=True)
+    oc = obs - obs.mean(axis=0, keepdims=True)
+    num = (pc * oc).sum(axis=0)
+    den = np.sqrt((pc**2).sum(axis=0) * (oc**2).sum(axis=0))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = num / den
+    r[~np.isfinite(r)] = np.nan
+    return r
+
+
+def compute_intrinsic_metrics(
+    enhanced,
+    observed: np.ndarray,
+    held_mask: np.ndarray,
+    seed: int,
+    silhouette_max: int = 10000,
+) -> dict:
+    """Compute intrinsic, self-supervised enhancement metrics (NO ground truth).
+
+    Metrics:
+      * held_out_gene_pearson_mean / _median: recovered vs observed on the
+        held-out (masked) gene columns (self-supervised recovery).
+      * self_consistency_pearson: recovered vs observed on the NON-masked gene
+        columns (enhancement should preserve observed signal).
+      * latent_silhouette / _n_subsample: silhouette of obsm['latent_enhanced']
+        vs Leiden clusters computed on the latent itself, on a seeded
+        <= silhouette_max subsample (silhouette_score is O(n^2)). null if the
+        latent obsm key is absent.
+      * imputed_nonzero_fraction / imputed_dynamic_range: structure sanity stats.
+    """
+    metrics: dict = {}
+
+    # Recovered full-gene matrix (only meaningful when imputed has gene dim).
+    recovered = None
+    if "imputed" in enhanced.layers:
+        recovered = np.asarray(enhanced.layers["imputed"], dtype=np.float32)
+
+    if recovered is not None and recovered.shape == observed.shape:
+        held_r = _pearson_per_column(recovered[:, held_mask], observed[:, held_mask])
+        metrics["held_out_gene_pearson_mean"] = float(np.nanmean(held_r))
+        metrics["held_out_gene_pearson_median"] = float(np.nanmedian(held_r))
+
+        keep_mask = ~held_mask
+        if keep_mask.any():
+            sc_r = _pearson_per_column(recovered[:, keep_mask], observed[:, keep_mask])
+            metrics["self_consistency_pearson"] = float(np.nanmean(sc_r))
+        else:
+            metrics["self_consistency_pearson"] = None
+
+        nonzero = float(np.count_nonzero(recovered)) / float(recovered.size)
+        metrics["imputed_nonzero_fraction"] = nonzero
+        metrics["imputed_dynamic_range"] = float(
+            np.nanmax(recovered) - np.nanmin(recovered)
+        )
+    else:
+        # Latent-only imputation: gene-level recovery undefined.
+        metrics["held_out_gene_pearson_mean"] = None
+        metrics["held_out_gene_pearson_median"] = None
+        metrics["self_consistency_pearson"] = None
+        metrics["imputed_nonzero_fraction"] = None
+        metrics["imputed_dynamic_range"] = None
+
+    # Latent silhouette (intrinsic separability), seeded <=10k subsample.
+    sil_val = None
+    sil_n = None
+    if "latent_enhanced" in enhanced.obsm:
+        try:
+            import scanpy as _sc
+            from sklearn.metrics import silhouette_score
+
+            latent = np.asarray(enhanced.obsm["latent_enhanced"], dtype=np.float32)
+            n = latent.shape[0]
+            rng = np.random.default_rng(seed)
+            if n > silhouette_max:
+                sub_idx = np.sort(rng.choice(n, size=silhouette_max, replace=False))
+            else:
+                sub_idx = np.arange(n)
+            sil_n = int(sub_idx.shape[0])
+            sub = latent[sub_idx]
+
+            import anndata as _ad
+
+            tmp = _ad.AnnData(X=np.zeros((sub.shape[0], 1), dtype=np.float32))
+            tmp.obsm["latent_enhanced"] = sub
+            _sc.pp.neighbors(tmp, use_rep="latent_enhanced", n_neighbors=15)
+            _sc.tl.leiden(tmp, key_added="leiden_latent", resolution=1.0)
+            labels = tmp.obs["leiden_latent"].to_numpy()
+            if len(set(labels)) > 1:
+                sil_val = float(silhouette_score(sub, labels))
+            else:
+                sil_val = None  # single cluster -> silhouette undefined
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARNING] latent_silhouette computation failed: {exc}")
+            sil_val = None
+    metrics["latent_silhouette"] = sil_val
+    metrics["latent_silhouette_n_subsample"] = sil_n
+
+    return metrics
+
+
 def main(args):
     device = get_device()
     print(f"Using device: {device}")
 
     # === Smart data source selection ===
     # Priority: 1. Explicit --reference / --target
-    #           2. Real baseline data from labs/data/baselines/st_impute_ref/ (if present)
+    #           2. Real baseline data under LUMINA_BASELINE_ROOT (if present)
     #           3. High-quality synthetic data (always works)
+    # The baseline root is configurable (#121) so the script is not tied to a
+    # specific on-disk layout; default is data/baselines/reference under the repo.
+    _default_root = Path(__file__).resolve().parents[2] / "data" / "baselines" / "reference"
+    DATA_ROOT = Path(os.environ.get("LUMINA_BASELINE_ROOT", str(_default_root)))
 
-    DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "baselines" / "stpainter"
+    # Provenance tracking for the results contract.
+    used_real_data = False
+    dataset_paths: list[str] = []
 
     if args.reference and args.target:
         ref = sc.read_h5ad(args.reference)
         target = sc.read_h5ad(args.target)
+        used_real_data = True
+        dataset_paths = [str(Path(args.reference).resolve()), str(Path(args.target).resolve())]
         print("Using user-provided real data files.")
     elif DATA_ROOT.exists() and any((DATA_ROOT / sub).exists() for sub in ("processed", "processed_data")):
         # Accept both folder names — the gdown download yields processed_data/,
@@ -96,6 +214,8 @@ def main(args):
             raise FileNotFoundError(f"No st_*_test.h5ad found in {processed}")
         target_path = possible_targets[0]
         target = sc.read_h5ad(target_path)
+        used_real_data = True
+        dataset_paths = [str(ref_path.resolve()), str(target_path.resolve())]
         if args.cancer is None:
             args.cancer = target_path.stem.replace("st_", "").replace("_test", "")
     else:
@@ -111,14 +231,53 @@ def main(args):
     print(f"Reference: {ref.n_obs} cells, {ref.n_vars} genes")
     print(f"Target ST : {target.n_obs} cells, {target.n_vars} genes")
 
-    # Create a minimal registry from the data
-    if "cancer_type" in ref.obs:
-        cancers = sorted(ref.obs["cancer_type"].astype(str).unique().tolist())
-    elif "Tumor Type" in ref.obs:
-        cancers = sorted(ref.obs["Tumor Type"].astype(str).unique().tolist())
-    else:
-        cancers = ["UNKNOWN"]
-    registry = CancerRegistry({c: i for i, c in enumerate(cancers)})
+    # Optional seeded target subsample guard (large 344k-cell target).
+    target_subsample_n = None
+    target_n_obs_full = int(target.n_obs)
+    if args.max_cells is not None and target.n_obs > args.max_cells:
+        rng = np.random.default_rng(args.seed)
+        keep = np.sort(rng.choice(target.n_obs, size=args.max_cells, replace=False))
+        target = target[keep].copy()
+        target_subsample_n = int(args.max_cells)
+        print(
+            f"[INFO] Subsampled target from {target_n_obs_full} to "
+            f"{target.n_obs} cells (seed={args.seed}) via --max_cells guard."
+        )
+
+    compute_start = time.time()
+
+    # The ReferenceAtlasDataset indexes ``cfg.vae_batch_key`` to produce the
+    # conditioning label ``y`` that is ALSO passed as the scVI ``batch_index``.
+    # scVI here is set up with ``batch_key="cancer_type"`` (n_batch = #cancer_type
+    # values), so the dataset MUST index the same column or the scVI batch
+    # embedding is indexed out of range. On the synthetic path cancer_type was
+    # the conditioning column; on real data the default ``vae_batch_key="batch"``
+    # holds sample IDs distinct from cancer_type and breaks this alignment.
+    # Pin the dataset key to the scVI batch key so training labels match the
+    # encoder's batch space.
+    batch_key = "cancer_type" if "cancer_type" in ref.obs else "batch"
+
+    # Build the registry from the SAME column the dataset/scVI condition on,
+    # plus a UNKNOWN fallback.  The scVI model is set up with batch_key =
+    # batch_key, so every reference label in that column must be in the
+    # registry (= in cfg.cancer_types) or the dataset's y-lookup fails.
+    #
+    # LuminaImputer.enhance rebuilds its OWN internal registry from
+    # cfg.cancer_types, so the enhance_label must also be in that list.
+    # We therefore include BOTH the reference batch labels AND the requested
+    # --cancer label in cancer_types so both the training DataLoader and the
+    # enhance() call resolve their labels.
+    ref_labels = sorted(ref.obs[batch_key].astype(str).unique().tolist())
+    # scVI batch index for the enhancement pass must stay within [0, n_batch).
+    # n_batch = number of distinct cancer_type values in the reference.
+    # Use the first reference label (index 0) as the enhancement label so the
+    # scVI batch embedding is never indexed out of range.
+    enhance_label = ref_labels[0] if ref_labels else (args.cancer or "UNKNOWN")
+
+    cancer_types_list = list(dict.fromkeys(
+        ref_labels + ([args.cancer] if args.cancer else []) + ["UNKNOWN"]
+    ))
+    registry = CancerRegistry({c: i for i, c in enumerate(cancer_types_list)})
 
     cfg = LuminaSTConfig(
         latent_dim=args.latent_dim,
@@ -128,8 +287,31 @@ def main(args):
         batch_size=args.batch_size,
         max_epochs=args.max_epochs,
         guidance_scale=args.guidance_scale,
-        cancer_types=[args.cancer] if args.cancer else cancers[:1],
+        cancer_types=cancer_types_list,
+        vae_batch_key=batch_key,  # dataset/scVI condition on the same column; #106
+        sampling_method=args.sampling_method,
+        num_sampling_steps=args.num_sampling_steps,
     )
+
+    # Align the target gene panel to the reference panel: the scVI VAE is
+    # trained on the reference's gene space (n_input = ref.n_vars), so the
+    # target must be subset+reordered to the exact reference var_names before
+    # encoding. On real data ref (9906) is a subset of the target (10000)
+    # panel; drop target-only genes and reorder to the reference order.
+    n_genes_dropped = 0
+    if list(target.var_names) != list(ref.var_names):
+        shared = [g for g in ref.var_names if g in set(target.var_names)]
+        if len(shared) != ref.n_vars:
+            raise ValueError(
+                f"Reference panel not fully covered by target: "
+                f"{len(shared)}/{ref.n_vars} reference genes present in target."
+            )
+        n_genes_dropped = int(target.n_vars - len(shared))
+        target = target[:, shared].copy()
+        print(
+            f"[INFO] Aligned target to reference panel: kept {len(shared)} genes, "
+            f"dropped {n_genes_dropped} target-only genes."
+        )
 
     # 1. Train scVI VAE on reference (if not provided)
     if args.scvi_model and Path(args.scvi_model).exists():
@@ -152,7 +334,14 @@ def main(args):
             print("          For real results, run with: conda run -n dl python ...")
             scvi_model = None  # signal to use TinyVAE path
 
-    # 2. Prepare datasets
+    # 2. Prepare datasets. ReferenceAtlasDataset.__getitem__ indexes a single
+    #    row of ref.X and calls torch.from_numpy; a sparse CSR row yields an
+    #    object-dtype array that torch can't convert. Densify ref.X to float32
+    #    first (20000x9906 ~ 0.75 GB) so per-row indexing returns real floats.
+    if hasattr(ref.X, "toarray"):
+        ref.X = ref.X.toarray().astype(np.float32)
+    else:
+        ref.X = np.asarray(ref.X, dtype=np.float32)
     dataset = ReferenceAtlasDataset(ref, cfg, registry)
     loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=0)
 
@@ -204,26 +393,113 @@ def main(args):
         if epoch % 5 == 0 and last_loss is not None:
             print(f"  Epoch {epoch+1}/{cfg.max_epochs} - loss {last_loss.item():.4f}")
 
-    # 4. Enhance target
-    print("Enhancing target ST slice...")
+    # 4. Held-out-gene enhancement (self-supervised). Mask a seeded random
+    #    subset of genes on the target, enhance, then correlate the recovered
+    #    values against the original observed values on those held-out columns.
+    print("Enhancing target ST slice (held-out-gene benchmark)...")
     imputer = LuminaImputer(cfg, module)
-    enhanced = imputer.enhance(target, cancer_type=args.cancer)
 
-    # 5. Metrics
-    evaluator = EnhancementEvaluator(enhanced)
-    metrics = evaluator.summary()
-    print("\n=== Enhancement Metrics ===")
+    obs_mat = target.X.toarray() if hasattr(target.X, "toarray") else np.asarray(target.X)
+    obs_mat = np.asarray(obs_mat, dtype=np.float32)
+    n_genes = target.n_vars
+    var_names = list(target.var_names)
+
+    rng = np.random.default_rng(args.seed)
+    n_held = max(1, int(round(args.held_out_frac * n_genes)))
+    held_idx = np.sort(rng.choice(n_genes, size=n_held, replace=False))
+    held_out_genes = [var_names[i] for i in held_idx]
+    held_mask = np.zeros(n_genes, dtype=bool)
+    held_mask[held_idx] = True
+    print(f"[INFO] Holding out {n_held}/{n_genes} genes (seed={args.seed}) for recovery.")
+
+    enhanced = imputer.enhance(
+        target, cancer_type=enhance_label, held_out_genes=held_out_genes, seed=args.seed
+    )
+
+    # 5. Intrinsic metrics (NO ground-truth / ARI). All self-supervised.
+    metrics = compute_intrinsic_metrics(
+        enhanced=enhanced,
+        observed=obs_mat,
+        held_mask=held_mask,
+        seed=args.seed,
+        silhouette_max=args.silhouette_max,
+    )
+    print("\n=== Intrinsic Enhancement Metrics ===")
     for k, v in metrics.items():
         print(f"  {k}: {v:.4f}" if isinstance(v, float) else f"  {k}: {v}")
 
-    # 6. Save
+    runtime_s = time.time() - compute_start
+
+    # 6. Emit via the vendored uniform results contract.
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     enhanced.write(out_path)
     print(f"\nEnhanced AnnData saved to {out_path}")
-    print("Key outputs:")
-    print("  .layers['imputed'] or .layers['imputed_latent']")
-    print("  .obsm['latent_enhanced']")
+
+    notes_parts: list[str] = []
+    if not used_real_data:
+        notes_parts.append("SYNTHETIC fallback data (no real reference/target provided)")
+    if target_subsample_n is not None:
+        notes_parts.append(
+            f"target subsampled to {target_subsample_n}/{target_n_obs_full} cells "
+            f"(seed={args.seed}) via --max_cells"
+        )
+    if metrics.get("latent_silhouette") is None:
+        notes_parts.append("latent_silhouette=null (obsm['latent_enhanced'] absent or single cluster)")
+    notes_parts.append(f"held_out genes={n_held}/{n_genes} (frac={args.held_out_frac})")
+    notes_parts.append(
+        f"requested_cancer={args.cancer!r}; conditioned scVI batch on reference "
+        f"{batch_key}={enhance_label!r} (target --cancer label outside scVI batch space)"
+    )
+    if n_genes_dropped:
+        notes_parts.append(
+            f"aligned target to reference panel: dropped {n_genes_dropped} target-only genes"
+        )
+
+    card_id = results_contract.dataset_card_id(dataset_paths) if dataset_paths else "synthetic"
+
+    results_root = Path(__file__).resolve().parents[2] / "results"
+    write_out = results_contract.write_results(
+        project="lumina-st",
+        dataset_card_id=card_id,
+        metrics=metrics,
+        outputs={"enhanced": "outputs/enhanced.h5ad", "imputed": "outputs/imputed.npy"},
+        run_metadata={
+            "dataset_paths": dataset_paths,
+            "n_obs": int(enhanced.n_obs),
+            "n_vars": int(enhanced.n_vars),
+            "seed": int(args.seed),
+            "runtime_s": float(runtime_s),
+            "device": "cuda" if device.type == "cuda" else "cpu",
+            "deterministic": False,
+            "num_threads": int(torch.get_num_threads()),
+            "reproducibility_level": "seeded",
+            "normalization": {"applied": False, "method": "none"},
+            "interpretability": {
+                "model_is_learned": True,
+                "encoder": "SCVI VAE latent encoder + LuminaTransformer flow-matching",
+                "domain_assignment": "n/a (enhancement/imputation, no domain labels)",
+                "caveats": [],
+            },
+            "notes": "; ".join(notes_parts),
+        },
+        results_dir=str(results_root),
+    )
+
+    # Write native output artifacts into outputs/.
+    outputs_dir = Path(write_out["outputs_dir"])
+    enhanced.write(outputs_dir / "enhanced.h5ad")
+    imputed_layer = "imputed" if "imputed" in enhanced.layers else (
+        "imputed_latent" if "imputed_latent" in enhanced.layers else None
+    )
+    if imputed_layer is not None:
+        np.save(outputs_dir / "imputed.npy", np.asarray(enhanced.layers[imputed_layer]))
+
+    print("\n=== Contract emission ===")
+    print(f"  metrics.json      -> {write_out['metrics']}")
+    print(f"  run_metadata.json -> {write_out['run_metadata']}")
+    print(f"  outputs/          -> {outputs_dir}")
+    print(f"  used_real_data    -> {used_real_data}")
 
 
 if __name__ == "__main__":
@@ -240,5 +516,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--max_epochs", type=int, default=8)
     parser.add_argument("--guidance_scale", type=float, default=3.0)
+    parser.add_argument("--seed", type=int, default=0, help="Seed for held-out gene/cell subsampling and silhouette.")
+    parser.add_argument("--max_cells", type=int, default=None, help="Optional seeded target-cell subsample cap (large targets).")
+    parser.add_argument("--held_out_frac", type=float, default=0.1, help="Fraction of target genes held out for self-supervised recovery.")
+    parser.add_argument("--silhouette_max", type=int, default=10000, help="Max cells (seeded subsample) for latent silhouette (O(n^2)).")
+    parser.add_argument("--sampling_method", type=str, default="euler", help="ODE solver for enhancement (euler/heun/dopri5). Default euler avoids GPU OOM on large batches.")
+    parser.add_argument("--num_sampling_steps", type=int, default=10, help="Number of ODE integration steps (fixed-step solvers).")
     args = parser.parse_args()
     main(args)

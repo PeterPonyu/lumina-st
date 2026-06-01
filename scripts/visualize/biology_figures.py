@@ -6,7 +6,7 @@ Runs in three modes:
 
   synthetic  read results/benchmark/enhanced/<config>.h5ad from the sweep
   real       auto-detect baseline test slices under
-             data/baselines/st_impute_ref/processed_data/,
+             $LUMINA_BASELINE_ROOT/processed_data/ (default data/baselines/reference),
              subsample to <=10k cells/slice, train a tiny LuminaST end-to-end
              (TinyVAE + flow), and enhance the slice
   all        both
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -75,7 +76,13 @@ from lumina_st.models.lumina_transformer import LuminaTransformer
 from lumina_st.modules.lumina_flow_module import LuminaFlowModule
 
 
-BASELINE_ROOT = PROJECT_ROOT.parent / "data" / "baselines" / "stpainter"
+# Configurable baseline root (#121); override with LUMINA_BASELINE_ROOT.
+BASELINE_ROOT = Path(
+    os.environ.get(
+        "LUMINA_BASELINE_ROOT",
+        str(PROJECT_ROOT.parent / "data" / "baselines" / "reference"),
+    )
+)
 SYNTHETIC_SWEEP = PROJECT_ROOT / "results" / "benchmark" / "enhanced"
 
 
@@ -141,8 +148,6 @@ def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, s
     X_ref = np.maximum(X_target + rng.normal(0, X_target.std() * 0.1, X_target.shape).astype(np.float32), 0.0)
     ref = AnnData(X=X_ref)
     ref.obs["cancer_type"] = cancer_name
-    # ReferenceAtlasDataset keys on config.vae_batch_key (default "batch")
-    ref.obs["batch"] = cancer_name
     ref.var_names = list(target.var_names)
 
     registry = CancerRegistry({cancer_name: 0})
@@ -151,6 +156,7 @@ def enhance_real_slice(slice_path: Path, max_cells: int, device: torch.device, s
         batch_size=64, max_epochs=3,
         cancer_types=[cancer_name],
         apply_sparsity=False,
+        vae_batch_key="cancer_type",  # ReferenceAtlasDataset keys here; #106
     )
 
     transformer = LuminaTransformer(
