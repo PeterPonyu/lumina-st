@@ -8,12 +8,12 @@ and the artifacts are reproducible without any external data.
 
 ```bash
 conda run --no-capture-output -n dl python scripts/benchmark/run_synthetic_sweep.py
-conda run --no-capture-output -n dl python scripts/benchmark/make_plots.py
 ```
 
-The first command writes raw JSON under `results/benchmark/` (git-ignored).
-The second command renders figures and a Markdown report under
-`docs/benchmark/` (git-tracked).
+The command writes raw JSON under `results/benchmark/` (git-ignored).
+
+<!-- TODO(ref-parity): the plot-rendering script was removed pending real-data
+results; regenerate the figure/report pipeline once results exist. -->
 
 ## What is swept
 

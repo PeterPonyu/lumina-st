@@ -150,11 +150,11 @@ def test_repo_root_defaults_stay_inside_lumina_checkout() -> None:
     repo = Path(__file__).resolve().parents[1]
     eval_root = (repo / "scripts/e2e/eval_latent_quality.py").resolve().parents[2]
     enhance_root = (repo / "scripts/e2e/enhance_real_st.py").resolve().parents[2]
-    fig_root = (repo / "scripts/visualize/fig_composed_main_claim.py").resolve().parents[2]
+    # TODO(ref-parity): scripts/visualize/fig_composed_main_claim.py removed
+    # pending real-data results; drop its path-depth assertion for now.
 
     assert eval_root == repo
     assert enhance_root == repo
-    assert fig_root == repo
 
 
 def test_readme_install_and_quickstart_match_current_api() -> None:
