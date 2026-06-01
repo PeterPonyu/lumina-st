@@ -24,7 +24,7 @@ from .transport import (
     create_flow_transport,
 )
 from .integrators import ode, sde
-from .utils import expand_time_like_data, mean_flat
+from .utils import expand_time_like_data, mean_flat, validate_guidance_scale
 
 __all__ = [
     "InterpolationPath",
@@ -41,4 +41,5 @@ __all__ = [
     "sde",
     "expand_time_like_data",
     "mean_flat",
+    "validate_guidance_scale",
 ]

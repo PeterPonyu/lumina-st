@@ -11,8 +11,46 @@ References (for the overall flow-matching approach):
 
 from __future__ import annotations
 
+import math
+
 import torch
-from typing import Tuple
+
+
+def validate_guidance_scale(cfg_scale: float, *, max_scale: float = 100.0) -> float:
+    """Validate a classifier-free guidance scale and return it as a float.
+
+    The scale enters the CFG blend ``v_uncond + cfg_scale * (v_cond - v_uncond)``.
+    Left unchecked, a NaN/inf scale silently yields NaN latents and a negative or
+    absurdly large scale pushes wildly out of distribution. We reject such values
+    early with a clear error instead of letting them flow through sampling.
+
+    Args:
+        cfg_scale: The requested guidance scale.
+        max_scale: Upper bound of the sane range (typical CFG scales are in
+            ``[1, 15]``); values above this almost always indicate a mistake.
+
+    Returns:
+        The validated scale as a ``float``.
+
+    Raises:
+        TypeError: If ``cfg_scale`` is not a real number.
+        ValueError: If ``cfg_scale`` is non-finite, negative, or exceeds
+            ``max_scale``.
+    """
+    try:
+        scale = float(cfg_scale)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(f"guidance scale must be a real number, got {cfg_scale!r}") from exc
+    if not math.isfinite(scale):
+        raise ValueError(f"guidance scale must be finite, got {scale}")
+    if scale < 0.0:
+        raise ValueError(f"guidance scale must be non-negative, got {scale}")
+    if scale > max_scale:
+        raise ValueError(
+            f"guidance scale {scale} exceeds the sane maximum {max_scale}; "
+            "typical classifier-free guidance scales are in [1, 15]"
+        )
+    return scale
 
 
 def expand_time_like_data(t: torch.Tensor, x: torch.Tensor) -> torch.Tensor:

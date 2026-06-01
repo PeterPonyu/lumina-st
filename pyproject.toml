@@ -42,6 +42,7 @@ dependencies = [
   "tqdm",
   "einops",
   "torchdiffeq",
+  "pytorch_lightning>=2.4",
 ]
 
 [project.optional-dependencies]
@@ -77,3 +78,7 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# src-layout: make `import lumina_st` work on a fresh checkout without an
+# editable install. Without this, pytest cannot collect the suite out of the
+# box (see issue #96). Pytest prepends these paths to sys.path at startup.
+pythonpath = ["src"]

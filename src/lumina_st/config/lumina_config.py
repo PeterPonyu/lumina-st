@@ -44,7 +44,13 @@ class LuminaSTConfig(BaseModel):
     latent_dim: int = 50
     vae_checkpoint: Optional[Path] = None
     freeze_vae_encoder: bool = True
-    vae_batch_key: str = "batch"  # or "Tumor Type" in original data
+    # `.obs` column that names the VAE batch / cancer label for each cell.
+    # Defaults to ``None`` (issue #106) — the historical literal ``"batch"``
+    # silently conflicted with the ``"cancer_type"`` column read by other
+    # call sites such as :class:`SpatialTranscriptomicsDataset`, so an
+    # unconfigured run could mis-label every cell. Callers must set this
+    # explicitly (typically ``"cancer_type"``) when constructing a dataset.
+    vae_batch_key: Optional[str] = None
     latent_encoder_backend: Literal["tiny_vae", "scvi", "scgpt", "nicheformer", "geneformer", "uce"] = "tiny_vae"
     foundation_embedding_dim: Optional[int] = None
     foundation_checkpoint: Optional[Path] = None
@@ -82,14 +88,26 @@ class LuminaSTConfig(BaseModel):
     # Sampling / Imputation (inference)
     # ------------------------------------------------------------------
     guidance_scale: float = 3.0
-    t_forward: float = 0.9  # how far to noise the observed genes before denoising
+    # Forward integration start time on the path. Convention (LinearPath): t=1 is
+    # data, t=0 is noise; ``t_forward`` is therefore the *data fraction* kept in
+    # the noised state z_t = alpha(t)*z + sigma(t)*x0. With t_forward=0.5 the
+    # observed latent is half-noised before the reverse ODE reintegrates it —
+    # the historical default 0.9 only displaced z by ~10% and produced a
+    # near-identity "enhancement". See issue #148.
+    t_forward: float = 0.5
     sampling_method: str = "dopri5"
     num_sampling_steps: int = 50
     atol: float = 1e-5
     rtol: float = 1e-5
 
-    # Sparsity post-processing (important for realistic gene counts)
-    apply_sparsity: bool = True
+    # Sparsity post-processing (important for realistic gene counts).
+    # Default is OFF (#142): the per-cell 95th-percentile fallback was
+    # zeroing the bottom ~95% of every cell's imputation BEFORE held-out
+    # gene Pearson was scored, so default benchmark numbers measured the
+    # sparsifier, not the model. Callers who need sparsity matching must
+    # opt in explicitly and document which sparsity mode produced each
+    # reported metric.
+    apply_sparsity: bool = False
     sparsity_percentile: float = 0.95
 
     # ------------------------------------------------------------------
@@ -110,9 +128,26 @@ class LuminaSTConfig(BaseModel):
         return [c.upper() for c in v]
 
     def get_cancer_index(self, name: str) -> int:
-        """Will be wired to the registry at runtime."""
-        # Placeholder — real implementation lives in data/cancer_registry.py
-        return 0
+        """Return the integer index of ``name`` within ``cancer_types``.
+
+        Names are matched case-insensitively — the ``cancer_types`` field
+        validator upper-cases every entry, so any case maps to the same
+        index. The full ``CancerRegistry`` in ``data/cancer_registry.py`` is
+        the runtime-mutable version of this mapping; this method gives
+        callers that already hold a ``LuminaSTConfig`` a self-contained
+        lookup using the same convention.
+
+        Raises:
+            KeyError: if ``name`` is not present in ``self.cancer_types``.
+        """
+        key = name.upper()
+        try:
+            return self.cancer_types.index(key)
+        except ValueError as exc:
+            raise KeyError(
+                f"Unknown cancer type {name!r}; configured cancer_types="
+                f"{self.cancer_types}"
+            ) from exc
 
     def model_dump_for_checkpoint(self) -> Dict[str, Any]:
         """Safe subset to store next to checkpoints."""
