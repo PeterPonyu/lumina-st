@@ -1,12 +1,14 @@
 .PHONY: pdf figures clean
 
 # Build the manuscript PDF end-to-end:
-#   1. (Re)compose every figure from the synthetic benchmark JSONs
-#   2. Compile main.tex via explicit pdflatex + bibtex + pdflatex x2 chain.
+#   1. Compile main.tex via explicit pdflatex + bibtex + pdflatex x2 chain.
 #      We avoid `latexmk -pdf` here because it stops early when the .aux
 #      file changes during the bibtex pass, producing an empty bibliography.
 #
-# Requires: pdflatex, bibtex, matplotlib (use the dl env)
+# TODO(ref-parity): figure-generation scripts were removed pending real
+# computational results; main.tex uses placeholder figure boxes for now.
+#
+# Requires: pdflatex, bibtex
 pdf: figures
 	pdflatex -interaction=nonstopmode -halt-on-error main.tex > /dev/null
 	bibtex main > /dev/null || true
@@ -14,9 +16,10 @@ pdf: figures
 	pdflatex -interaction=nonstopmode -halt-on-error main.tex
 	@echo "[manuscript] PDF built at main.pdf"
 
-# Compose multi-panel figures from results/benchmark/*.json
+# TODO(ref-parity): figure generators removed; main.tex uses placeholder
+# boxes until real-data results exist. No-op so `make pdf` still builds.
 figures:
-	python compose_figures.py
+	@echo "[manuscript] figure generation skipped (ref-parity placeholder)"
 
 clean:
 	latexmk -C
