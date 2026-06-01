@@ -156,7 +156,7 @@ all verified to load on 2026-05-28.
 | B6 | Visium breast cancer Block A (2 serial sections) | #70 | `sc.datasets.visium_sge('V1_Breast_Cancer_Block_A_Section_1' / '..._Section_2')` | ✅ raw UMI in `.X` | `BRCA` | Real cancer ST target; serial sections → paired-slice experiments. HEST-1k (#54) backs the pan-cancer claim. |
 
 > **CancerRegistry note (#70):** `BRCA` and `OV` are present in
-> `configs/stpainter_registry.yaml`; `SKCM` (#66) is not. `CancerRegistry.default_pan_cancer`
+> `configs/cancer_registry.yaml`; `SKCM` (#66) is not. `CancerRegistry.default_pan_cancer`
 > falls back to `UNKNOWN` for any unlisted token, so loaders either load a registry file that
 > defines the token or accept the documented `UNKNOWN` mapping. No code change is forced here.
 
