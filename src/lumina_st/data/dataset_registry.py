@@ -403,7 +403,7 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         citation_key="10x_visium_breast_block_a",
         raw_count_policy="raw UMI already in .X; no restore needed.",
         contract_mapping="SpatialTranscriptomicsDataset; spot coords -> .obsm['spatial']; "
-        ".obs['cancer_type']='BRCA' (token present in configs/stpainter_registry.yaml; "
+        ".obs['cancer_type']='BRCA' (token present in configs/cancer_registry.yaml; "
         "default_pan_cancer falls back to UNKNOWN).",
         tier="B",
         notes="Real cancer ST target; two serial sections -> paired-slice experiments. "
