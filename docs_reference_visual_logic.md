@@ -17,11 +17,9 @@ Clean-room adaptation rules used here:
 - Do not copy source paper artwork, logos, captions, exact panel ordering, or unsupported claims.
 - Demo values are labelled as planning/demo values until replaced with local benchmark JSON.
 
-Implemented script:
-
-```bash
-python scripts/visualize/fig_reference_visual_story.py
-```
+<!-- TODO(ref-parity): figure-generation script removed pending real-data
+results; regenerate the figure pipeline once computational results exist. -->
+Figure-generation script pending regeneration after real-data results.
 
 Primary output:
 
@@ -29,11 +27,9 @@ Primary output:
 
 ## Composed main-claim figure
 
-Implemented script:
-
-```bash
-python scripts/visualize/fig_composed_main_claim.py
-```
+<!-- TODO(ref-parity): figure-generation script removed pending real-data
+results; regenerate the figure pipeline once computational results exist. -->
+Figure-generation script pending regeneration after real-data results.
 
 Primary output:
 
