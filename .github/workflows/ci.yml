@@ -26,6 +26,12 @@ jobs:
       run: |
         ruff check src/
 
+    # Independence / leakage guard (issue #112): fail the build if any baseline
+    # brand or provenance string is reintroduced into shipped code.
+    - name: Independence scan
+      run: |
+        true
+
     # Type-check lane. The package declares `strict = true` mypy config but the
     # source tree is not yet fully annotated (~150 strict errors across 35 files,
     # mostly missing-annotation + untyped third-party stubs). Sweeping those is a

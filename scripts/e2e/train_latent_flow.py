@@ -115,12 +115,36 @@ def main(args):
 
     module = LuminaFlowModule(cfg, transformer)
 
+    # Validation-driven model selection (issue #146): now that the module logs
+    # `val_loss` in validation_step, monitor it to save the best epoch (not just
+    # the last) and optionally stop early when it plateaus.
+    from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+    ckpt_dir = Path(cfg.output_dir) / cfg.experiment_name / "checkpoints"
+    callbacks: list[pl.Callback] = [
+        ModelCheckpoint(
+            monitor="val_loss",
+            mode="min",
+            save_top_k=1,
+            save_last=True,
+            dirpath=str(ckpt_dir),
+            filename="best-{epoch:02d}-{val_loss:.4f}",
+        )
+    ]
+    if cfg.early_stopping_patience is not None:
+        callbacks.append(
+            EarlyStopping(
+                monitor="val_loss", mode="min", patience=cfg.early_stopping_patience
+            )
+        )
+
     trainer = pl.Trainer(
         max_epochs=cfg.max_epochs,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=1,
         gradient_clip_val=cfg.gradient_clip_val,
         logger=True,
+        callbacks=callbacks,
     )
 
     trainer.fit(module, train_loader, val_loader)
