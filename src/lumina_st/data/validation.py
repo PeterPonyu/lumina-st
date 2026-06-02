@@ -1,9 +1,14 @@
 import logging
-from typing import List, Optional
+from typing import Iterable, List, Optional, Set, Union
 import anndata as ad
 import numpy as np
 
 logger = logging.getLogger("lumina_st.data.validation")
+
+# Cancer-type tokens that are deliberately non-specific and therefore always
+# compatible with any target (pan-cancer / multi-tissue / unlabeled reference
+# pools). See CancerRegistry.default_pan_cancer / the dataset registry.
+_WILDCARD_CANCER_TYPES = frozenset({"UNKNOWN", "MIXED", "PAN", "PANCANCER", "PAN_CANCER"})
 
 class AnnDataSchemaValidator:
     """Validator for verifying target ST and reference scRNA AnnData schemas."""
@@ -164,5 +169,103 @@ class AnnDataSchemaValidator:
                 f"Low gene overlap between target and reference: {overlap_ratio * 100:.2f}% "
                 f"(required at least {min_overlap_ratio * 100:.2f}%)."
             )
-            
+
         return overlap
+
+    @staticmethod
+    def _resolve_cancer_types(
+        source: Union["ad.AnnData", str, Iterable[str]],
+        obs_key: str,
+        role: str,
+    ) -> Set[str]:
+        """Normalize a cancer-type source into a set of upper-cased tokens.
+
+        Accepts an AnnData (reads ``.obs[obs_key]``), a single string, or any
+        iterable of strings. Raises ``KeyError`` if an AnnData lacks ``obs_key``.
+        """
+        if isinstance(source, ad.AnnData):
+            if obs_key not in source.obs:
+                raise KeyError(
+                    f"{role} AnnData has no .obs['{obs_key}']; pass the cancer "
+                    "type explicitly (str) so suitability can be checked."
+                )
+            values: Iterable[str] = source.obs[obs_key].astype(str).tolist()
+        elif isinstance(source, str):
+            values = [source]
+        else:
+            values = [str(v) for v in source]
+        return {v.strip().upper() for v in values if str(v).strip()}
+
+    @staticmethod
+    def check_reference_target_suitability(
+        reference: Union["ad.AnnData", str, Iterable[str]],
+        target: Union["ad.AnnData", str, Iterable[str]],
+        *,
+        obs_key: str = "cancer_type",
+        on_mismatch: str = "warn",
+    ) -> bool:
+        """Guard against pairing a reference atlas with a mismatched target.
+
+        The headline LuminaST failure mode (issue #212) is enhancing a
+        **solid-tumor** ST target (e.g. COAD) with a **mismatched** reference
+        atlas (e.g. GSE132509 — Acute Lymphocytic Leukemia PBMC), whose
+        ``cancer_type`` was synthesised from a GEO accession. That invalidates
+        every gene-recovery / clustering *uplift* claim, yet nothing flagged it.
+
+        Compatibility rule: the reference and target cancer-type token sets are
+        suitable if they intersect, or if either side is a deliberate wildcard
+        (``UNKNOWN``/``MIXED``/pan-cancer). Disjoint specific tokens are a
+        mismatch.
+
+        Args:
+            reference: reference cancer type(s) — AnnData, a string, or an
+                iterable of strings.
+            target: target cancer type(s) — same accepted forms. ST targets
+                often carry no ``cancer_type`` obs column, so pass the card's
+                declared type as a string.
+            obs_key: ``.obs`` column read when an AnnData is supplied.
+            on_mismatch: ``"warn"`` (log a warning, return ``False``),
+                ``"raise"`` (raise ``ValueError``), or ``"ignore"``
+                (return ``False`` silently).
+
+        Returns:
+            ``True`` if the pairing is suitable, ``False`` on a mismatch
+            (unless ``on_mismatch="raise"``).
+
+        Raises:
+            ValueError: on a mismatch when ``on_mismatch="raise"``, or if
+                ``on_mismatch`` is not a recognised mode.
+        """
+        if on_mismatch not in {"warn", "raise", "ignore"}:
+            raise ValueError(
+                f"on_mismatch must be 'warn', 'raise' or 'ignore'; got {on_mismatch!r}."
+            )
+
+        ref_types = AnnDataSchemaValidator._resolve_cancer_types(reference, obs_key, "Reference")
+        tgt_types = AnnDataSchemaValidator._resolve_cancer_types(target, obs_key, "Target")
+
+        ref_specific = ref_types - _WILDCARD_CANCER_TYPES
+        tgt_specific = tgt_types - _WILDCARD_CANCER_TYPES
+
+        # Suitable if a wildcard is present on either side, or the specific
+        # tokens overlap.
+        wildcard = (ref_types & _WILDCARD_CANCER_TYPES) or (tgt_types & _WILDCARD_CANCER_TYPES)
+        if wildcard or (ref_specific & tgt_specific):
+            logger.info(
+                "Reference/target cancer-type suitability OK (reference=%s, target=%s).",
+                sorted(ref_types), sorted(tgt_types),
+            )
+            return True
+
+        msg = (
+            f"Reference/target cancer-type MISMATCH: reference={sorted(ref_types)} "
+            f"vs target={sorted(tgt_types)}. Enhancing a target with a mismatched "
+            "reference atlas invalidates gene-recovery and clustering uplift "
+            "metrics (issue #212). Swap in a matched reference or document the "
+            "caveat explicitly."
+        )
+        if on_mismatch == "raise":
+            raise ValueError(msg)
+        if on_mismatch == "warn":
+            logger.warning(msg)
+        return False
