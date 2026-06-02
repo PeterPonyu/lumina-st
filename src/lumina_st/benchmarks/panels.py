@@ -2,8 +2,8 @@
 
 These panels are defined here, before any imputation runs, so the runner can
 verify the held-out set has not been derived from clustering or DEG analysis
-of the imputed matrix. That is the non-circular-validation discipline called
-out in `docs/LUMINAST_PRIORITY_ENHANCEMENTS.md`.
+of the imputed matrix. That is the non-circular-validation discipline this
+benchmark suite follows.
 
 The canonical TME panel mirrors the marker set the two reference papers
 validate against (T-cell, macrophage, epithelial, endothelial, fibroblast

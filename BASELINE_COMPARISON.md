@@ -13,18 +13,18 @@ This document is the living audit artifact. It proves that the final LuminaST so
 | Original Concept / File                  | LuminaST Equivalent (new)                          | Rationale / Improvement |
 |------------------------------------------|----------------------------------------------------|---------------------------|
 | `stPainter` (brand)                      | `LuminaST` / `lumina_st`                           | Full rebrand for new paper series |
-| `train_vae.py` + `VAEModule`             | `scripts/train_latent_encoder.py` + `LatentEncoderModule` | Clearer name, Pydantic config |
-| `train_diffsuion.py` (typo kept)         | `scripts/train_latent_flow.py`                     | Fixed spelling, modern CLI |
-| `impute_stPainter.py`                    | `scripts/run_enhancement.py` + `LuminaImputer.enhance()` | User-facing verb "enhance" |
-| `DiffusionModule` + `impute()`           | `LuminaFlowModule` + `impute_expression()`         | Consistent with Aether3D naming |
-| `GiT` / "Gene Diffusion Transformer"     | `LatentVelocityNet` (in `models/velocity_net.py`) | No "GiT", no paper phrase |
+| `train_vae.py` + `VAEModule`             | latent encoders under `src/lumina_st/latents/` (`tiny_vae.py`, `scvi_vae.py`) | Pluggable encoder backends, Pydantic config |
+| `train_diffsuion.py` (typo kept)         | `scripts/e2e/train_latent_flow.py`                 | Fixed spelling, modern CLI |
+| `impute_stPainter.py`                    | `scripts/e2e/run_enhancement.py` + `LuminaImputer.enhance()` | User-facing verb "enhance" |
+| `DiffusionModule` + `impute()`           | `LuminaFlowModule` + `LuminaImputer.enhance()`     | Consistent with Aether3D naming |
+| `GiT` / "Gene Diffusion Transformer"     | `LuminaTransformer` (in `src/lumina_st/models/lumina_transformer.py`) | No "GiT", no paper phrase |
 | `STDataset` / `SCDataset`                | `SpatialTranscriptomicsDataset`, `ReferenceAtlasDataset` | Explicit, no acronym in public API |
-| `TUMOR_TO_IDX` (hard-coded 21 cancers)   | `lumina_st/data/cancer_registry.py` + YAML       | Extensible, no magic numbers |
+| `TUMOR_TO_IDX` (hard-coded 21 cancers)   | `src/lumina_st/data/cancer_registry.py` + YAML   | Extensible, no magic numbers |
 | `CalculateMetrics`                       | `EnhancementEvaluator` + metric registry         | Pluggable, paper-agnostic |
-| `src/transport/` (duplicated)            | `lumina_st/flow/` (clean re-type)                | Deduped within project; same clean copy in Aether3D |
-| `src/models/commons.py` + `git.py`       | `lumina_st/models/{embeddings,blocks,velocity_net}.py` | Fresh docstrings, modern PyTorch (SDPA, compile) |
-| argparse + raw dicts                     | `LuminaSTConfig` (Pydantic v2) + Hydra/OmegaConf optional | Type-safe, serializable, reproducible |
-| `process_data.py`                        | `lumina_st/data/processors.py` + CLI             | Reusable functions, no side effects |
+| `src/transport/` (duplicated)            | `src/lumina_st/flow/` (clean re-type)            | Deduped within project; same clean copy in Aether3D |
+| `src/models/commons.py` + `git.py`       | `src/lumina_st/models/{embeddings,attention_mlp,lumina_transformer}.py` | Fresh docstrings, modern PyTorch (SDPA) |
+| argparse + raw dicts                     | `LuminaSTConfig` (Pydantic v2)                   | Type-safe, serializable, reproducible |
+| `process_data.py`                        | `src/lumina_st/data/` (`datasets.py`, `validation.py`) | Reusable functions, no side effects |
 
 ## Leakage Prevention (Automated + Manual)
 

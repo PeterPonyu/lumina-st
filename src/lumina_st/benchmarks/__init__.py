@@ -1,7 +1,7 @@
 """Benchmark contract and adapters for LuminaST.
 
-This package implements the shared adapter contract documented in
-`docs/LUMINAST_PRIORITY_ENHANCEMENTS.md`. Every external imputation method
+This package implements the shared adapter contract defined in
+`contract.py`. Every external imputation method
 (SpaIM, TISSUE, CellT, stMCDI, ...) and every internal baseline (mean, kNN,
 LuminaST itself) must subclass BaseAdapter and honor the same input/output
 schema so they can be run from one runner and compared on shared metrics.
