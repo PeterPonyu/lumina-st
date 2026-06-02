@@ -6,13 +6,7 @@ both the reparameterization (``encode_to_latent``) and the KL term
 outputs under an extreme logvar while leaving the normal regime unchanged.
 """
 
-import sys
-from pathlib import Path
-
 import torch
-
-# Allow running the test directly without pip install -e
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from lumina_st.latents.tiny_vae import TinyVAE, LOGVAR_MIN, LOGVAR_MAX
 

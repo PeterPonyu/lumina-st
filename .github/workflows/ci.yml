@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "ref/**", "fix/**", "feat/**" ]
   pull_request:
     branches: [ main ]
 
@@ -15,16 +15,20 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Install lint tooling
       run: |
         python -m pip install --upgrade pip
-        pip install ruff mypy
+        pip install "ruff>=0.4" mypy
 
-    - name: Ruff lint (src)
+    - name: Ruff lint (src + tests)
       run: |
-        ruff check src/
+        ruff check src/ tests/
+
+    - name: Ruff format check
+      run: |
+        ruff format --check src/ tests/
 
     # Type-check lane. The package declares `strict = true` mypy config but the
     # source tree is not yet fully annotated (~150 strict errors across 35 files,
@@ -59,9 +63,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[dev,scvi,viz]"
 
+    # Verify collection succeeds independently before running tests — this
+    # catches import errors early and makes the failure mode obvious (issue #117).
+    - name: Verify test collection (no PYTHONPATH, no extra install)
+      run: |
+        python -m pytest --collect-only -q
+
     - name: Run tests
       run: |
-        pytest
+        python -m pytest -q --tb=short
 
     - name: Run bounded synthetic E2E smoke
       run: |
