@@ -28,7 +28,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
-import scipy.sparse as sp
+import scipy.sparse as sp  # type: ignore[import-untyped]
 
 __all__ = [
     "CountType",
