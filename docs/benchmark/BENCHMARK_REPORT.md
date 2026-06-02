@@ -49,5 +49,7 @@ Raw per-config JSON (loss curves, enhanced AnnData paths) lives under `results/b
 
 ```bash
 conda run --no-capture-output -n dl python scripts/benchmark/run_synthetic_sweep.py
-conda run --no-capture-output -n dl python scripts/benchmark/make_plots.py
 ```
+
+<!-- TODO(ref-parity): the plot-rendering script was removed pending real-data
+results; regenerate the figure/report pipeline once results exist. -->
