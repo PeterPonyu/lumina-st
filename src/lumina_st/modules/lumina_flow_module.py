@@ -29,6 +29,43 @@ from ..models.lumina_transformer import LuminaTransformer
 _FIXED_STEP_SOLVERS = frozenset({"euler", "heun"})
 
 
+def build_lr_lambda(
+    warmup_steps: int,
+    total_steps: int,
+    schedule: str,
+    base_lr: float,
+    min_lr: float,
+) -> Callable[[int], float]:
+    """Build the LambdaLR multiplier for warmup + decay (issue #134).
+
+    Returns a callable ``step -> factor`` where ``factor`` multiplies ``base_lr``:
+
+    * Linear warmup over ``warmup_steps`` (factor ramps ``1/warmup_steps`` -> 1).
+    * After warmup: ``"constant"`` holds at 1.0; ``"cosine"`` / ``"linear"``
+      decay from 1.0 down to ``min_lr / base_lr`` across the remaining steps.
+
+    Kept as a free function (no Lightning/trainer state) so the schedule math is
+    unit-testable in isolation.
+    """
+    min_factor = (min_lr / base_lr) if base_lr > 0 else 0.0
+    decay_steps = max(total_steps - warmup_steps, 1)
+
+    def lr_lambda(step: int) -> float:
+        if warmup_steps > 0 and step < warmup_steps:
+            return float(step + 1) / float(warmup_steps)
+        if schedule == "constant":
+            return 1.0
+        progress = min(max(step - warmup_steps, 0) / decay_steps, 1.0)
+        if schedule == "cosine":
+            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_factor + (1.0 - min_factor) * cosine
+        if schedule == "linear":
+            return 1.0 - (1.0 - min_factor) * progress
+        return 1.0
+
+    return lr_lambda
+
+
 class LuminaFlowModule(pl.LightningModule):
     """Lightning wrapper for training the conditional latent flow model + guided sampling."""
 
@@ -62,11 +99,60 @@ class LuminaFlowModule(pl.LightningModule):
         self.ema_model.eval()
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(
+        opt = torch.optim.AdamW(
             self.transformer.parameters(),
             lr=self.config.lr,
             weight_decay=self.config.weight_decay,
         )
+
+        schedule = getattr(self.config, "lr_schedule", "constant")
+        warmup_steps = getattr(self.config, "warmup_steps", 0)
+
+        # Preserve the exact historical behavior (bare AdamW) when no schedule
+        # and no warmup are requested — the default config path is untouched.
+        if schedule == "constant" and warmup_steps <= 0:
+            return opt
+
+        total_steps = self._resolve_total_steps()
+        lr_lambda = build_lr_lambda(
+            warmup_steps=warmup_steps,
+            total_steps=total_steps,
+            schedule=schedule,
+            base_lr=self.config.lr,
+            min_lr=getattr(self.config, "min_lr", 0.0),
+        )
+        scheduler = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda)
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",  # warmup/decay are step-based
+                "frequency": 1,
+            },
+        }
+
+    def _resolve_total_steps(self) -> int:
+        """Total optimizer steps for the schedule horizon.
+
+        Prefers Lightning's ``trainer.estimated_stepping_batches`` when a trainer
+        is attached and reports a finite positive value; otherwise falls back to
+        ``config.max_epochs`` so the lambda is always well-defined (e.g. in unit
+        tests that call ``configure_optimizers`` without a trainer).
+        """
+        # ``self.trainer`` is a property that RAISES when no trainer is attached
+        # (e.g. a unit test calling configure_optimizers directly), so guard it.
+        try:
+            trainer = self.trainer
+        except RuntimeError:
+            trainer = None
+        if trainer is not None:
+            est = getattr(trainer, "estimated_stepping_batches", None)
+            try:
+                if est is not None and math.isfinite(float(est)) and float(est) > 0:
+                    return int(est)
+            except (TypeError, ValueError):
+                pass
+        return max(int(self.config.max_epochs), 1)
 
     # ------------------------------------------------------------------
     # Training
@@ -84,6 +170,27 @@ class LuminaFlowModule(pl.LightningModule):
         loss = loss_dict["loss"]
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        """Flow-matching loss on a held-out batch for model selection (issue #146).
+
+        Without this hook the ``val_loader`` passed to ``trainer.fit`` is silently
+        unused, so Lightning logs no validation metric and cannot drive
+        EarlyStopping / best-checkpoint selection. Logs ``val_loss`` (epoch-level)
+        so ``ModelCheckpoint(monitor="val_loss")`` and ``EarlyStopping`` work.
+        """
+        x, y = batch
+        if self.vae is not None:
+            z, _ = self.vae.encode_to_latent(x, y)
+            z = z.detach()
+        else:
+            z = x
+
+        loss_dict = self.transport.training_losses(self.transformer, z, {"y": y})
+        loss = loss_dict["loss"]
+
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def on_train_batch_end(self, *args, **kwargs):
