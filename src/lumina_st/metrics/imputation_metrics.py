@@ -1,8 +1,8 @@
 """Pure-function imputation-quality metrics.
 
 Round 11 W002 + W003 — closes the SSIM, Jensen-Shannon, and cluster
-concordance gaps identified by docs/SCAFFOLD_READINESS_AUDIT.md against
-the corresponding sections of the baseline paper (Section 2.2 / 2.3 metric blocks).
+concordance metric gaps against the corresponding sections of the baseline
+paper (Section 2.2 / 2.3 metric blocks).
 
 Every function is a pure (input -> scalar-or-dict) call with deterministic
 output on identical input. None of the functions assume AnnData or any
