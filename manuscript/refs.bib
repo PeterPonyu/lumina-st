@@ -2,32 +2,33 @@
 % Prior-art citations only — leakage scanner forbids any verbatim copy of
 % prose, class names, or figure layouts from these references.
 
-@article{Vovk2005Conformal,
-  title   = {Algorithmic Learning in a Random World},
-  author  = {Vovk, Vladimir and Gammerman, Alex and Shafer, Glenn},
-  year    = {2005},
-  publisher = {Springer}
+@book{Vovk2005Conformal,
+  title     = {Algorithmic Learning in a Random World},
+  author    = {Vovk, Vladimir and Gammerman, Alex and Shafer, Glenn},
+  year      = {2005},
+  publisher = {Springer},
+  address   = {New York}
 }
 
-@article{Romano2019Conformalized,
-  title   = {Conformalized Quantile Regression},
-  author  = {Romano, Yaniv and Patterson, Evan and Cand{\`e}s, Emmanuel},
-  journal = {Advances in Neural Information Processing Systems},
-  year    = {2019}
+@inproceedings{Romano2019Conformalized,
+  title     = {Conformalized Quantile Regression},
+  author    = {Romano, Yaniv and Patterson, Evan and Cand{\`e}s, Emmanuel},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2019}
 }
 
-@article{Lipman2023FlowMatching,
-  title   = {Flow Matching for Generative Modeling},
-  author  = {Lipman, Yaron and Chen, Ricky T.\,Q. and Ben-Hamu, Heli and Nickel, Maximilian and Le, Matt},
-  journal = {International Conference on Learning Representations},
-  year    = {2023}
+@inproceedings{Lipman2023FlowMatching,
+  title     = {Flow Matching for Generative Modeling},
+  author    = {Lipman, Yaron and Chen, Ricky T.\,Q. and Ben-Hamu, Heli and Nickel, Maximilian and Le, Matt},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2023}
 }
 
-@article{Peebles2023DiT,
-  title   = {Scalable Diffusion Models with Transformers},
-  author  = {Peebles, William and Xie, Saining},
-  journal = {IEEE/CVF International Conference on Computer Vision},
-  year    = {2023}
+@inproceedings{Peebles2023DiT,
+  title     = {Scalable Diffusion Models with Transformers},
+  author    = {Peebles, William and Xie, Saining},
+  booktitle = {IEEE/CVF International Conference on Computer Vision (ICCV)},
+  year      = {2023}
 }
 
 @article{Wolf2018Scanpy,
@@ -50,16 +51,22 @@
 
 @article{Sun2024TISSUE,
   title   = {TISSUE: uncertainty-calibrated prediction of single-cell spatial transcriptomics improves downstream analyses},
-  author  = {Sun, Eric D. and others},
+  author  = {Sun, Eric D. and Ma, Rong and Navarro Negredo, Paloma and Brunet, Anne and Zou, James},
   journal = {Nature Methods},
-  year    = {2024}
+  year    = {2024},
+  volume  = {21},
+  pages   = {444--454},
+  doi     = {10.1038/s41592-024-02184-y}
 }
 
 @article{Song2025SpaIM,
   title   = {SpaIM: single-cell spatial transcriptomics imputation via style transfer},
-  author  = {Song, Qianqian and others},
+  author  = {Li, Bo and others and Song, Qianqian},
   journal = {Nature Communications},
-  year    = {2025}
+  year    = {2025},
+  volume  = {16},
+  pages   = {7861},
+  doi     = {10.1038/s41467-025-63185-9}
 }
 
 @article{Williams2022SpatialTranscriptomics,
@@ -77,8 +84,7 @@
   author  = {You, Yue and others},
   journal = {Nature Methods},
   year    = {2024},
-  doi     = {10.1038/s41592-024-02325-3},
-  note    = {Local copy: references/spatial_omics_pdfs/2024_You_Systematic_comparison_sequencing_based_ST_methods_NatureMethods.pdf}
+  doi     = {10.1038/s41592-024-02325-3}
 }
 
 @article{Cervilla2026SixCancerPlatforms,
@@ -86,8 +92,7 @@
   author  = {Cervilla, Sergi and others},
   journal = {Genome Biology},
   year    = {2026},
-  doi     = {10.1186/s13059-026-03937-y},
-  note    = {Local copy: references/spatial_omics_pdfs/2026_Cervilla_Technical_comparison_ST_platforms_six_cancer_types_GenomeBiology.pdf}
+  doi     = {10.1186/s13059-026-03937-y}
 }
 
 @article{Wang2025ImagingFFPE,
@@ -95,8 +100,7 @@
   author  = {Wang, Huan and others},
   journal = {Nature Communications},
   year    = {2025},
-  doi     = {10.1038/s41467-025-64990-y},
-  note    = {Local copy: references/spatial_omics_pdfs/2025_Wang_Systematic_benchmarking_imaging_ST_platforms_FFPE_NatureCommunications.pdf}
+  doi     = {10.1038/s41467-025-64990-y}
 }
 
 @article{Rademacher2025TumorST,
@@ -104,8 +108,7 @@
   author  = {Rademacher, Anne and others},
   journal = {Genome Biology},
   year    = {2025},
-  doi     = {10.1186/s13059-025-03624-4},
-  note    = {Local copy: references/spatial_omics_pdfs/2025_Rademacher_Comparison_ST_technologies_tumor_cryosections_GenomeBiology.pdf}
+  doi     = {10.1186/s13059-025-03624-4}
 }
 
 @article{Li2023DeconvolutionBenchmark,
@@ -113,8 +116,7 @@
   author  = {Li, Haoyang and others},
   journal = {Nature Communications},
   year    = {2023},
-  doi     = {10.1038/s41467-023-37168-7},
-  note    = {Local copy: references/spatial_omics_pdfs/2023_Comprehensive_benchmarking_cellular_deconvolution_ST_NatureCommunications.pdf}
+  doi     = {10.1038/s41467-023-37168-7}
 }
 
 @article{ClusteringIntegrationBenchmark2024,
@@ -122,6 +124,55 @@
   author  = {Hu, Yunfei and others},
   journal = {Genome Biology},
   year    = {2024},
-  doi     = {10.1186/s13059-024-03361-0},
-  note    = {Local copy: references/spatial_omics_pdfs/2024_Benchmarking_clustering_alignment_integration_ST_GenomeBiology.pdf}
+  doi     = {10.1186/s13059-024-03361-0}
+}
+
+% Reference-based ST gene-imputation baselines (issue #89).
+@article{Biancalani2021Tangram,
+  title   = {Deep learning and alignment of spatially resolved single-cell transcriptomes with Tangram},
+  author  = {Biancalani, Tommaso and others},
+  journal = {Nature Methods},
+  year    = {2021},
+  volume  = {18},
+  pages   = {1352--1362},
+  doi     = {10.1038/s41592-021-01264-7}
+}
+
+@article{Lopez2019gimVI,
+  title   = {A joint model of unpaired data from {scRNA-seq} and spatial transcriptomics for imputing missing gene expression measurements},
+  author  = {Lopez, Romain and Nazaret, Achille and Langevin, Maxime and Samaran, Jules and Regier, Jeffrey and Jordan, Michael I. and Yosef, Nir},
+  journal = {arXiv preprint arXiv:1905.02269},
+  year    = {2019}
+}
+
+@article{Abdelaal2020SpaGE,
+  title   = {{SpaGE}: spatial gene enhancement using {scRNA-seq}},
+  author  = {Abdelaal, Tamim and Mourragui, Soufiane and Mahfouz, Ahmed and Reinders, Marcel J.\,T.},
+  journal = {Nucleic Acids Research},
+  year    = {2020},
+  volume  = {48},
+  number  = {18},
+  pages   = {e107},
+  doi     = {10.1093/nar/gkaa740}
+}
+
+@article{Chen2021stPlus,
+  title   = {{stPlus}: a reference-based method for the accurate enhancement of spatial transcriptomics},
+  author  = {Chen, Shengquan and Zhang, Boheng and Chen, Xiaoyang and Zhang, Xuegong and Jiang, Rui},
+  journal = {Bioinformatics},
+  year    = {2021},
+  volume  = {37},
+  number  = {Supplement\_1},
+  pages   = {i299--i307},
+  doi     = {10.1093/bioinformatics/btab298}
+}
+
+@article{Wan2023SpatialScope,
+  title   = {Integrating spatial and single-cell transcriptomics data using deep generative models with {SpatialScope}},
+  author  = {Wan, Xiaomeng and others},
+  journal = {Nature Communications},
+  year    = {2023},
+  volume  = {14},
+  pages   = {7848},
+  doi     = {10.1038/s41467-023-43629-w}
 }
