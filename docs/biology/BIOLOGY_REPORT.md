@@ -128,8 +128,6 @@ Cancers rendered: CESC, COAD, LIHC, NSCLC, OV, PRAD
 
 ---
 
-Reproduce with (dl env required for the RTX 5090):
-
-```bash
-conda run --no-capture-output -n dl python scripts/visualize/biology_figures.py --mode all
-```
+<!-- TODO(ref-parity): biology_figures generator removed pending real-data
+results; regenerate the figure pipeline once computational results exist. -->
+Figure-generation script pending regeneration after real-data results.
