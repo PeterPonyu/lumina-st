@@ -31,4 +31,4 @@ This report compares the performance and mathematical correctness of three spars
 
 ## Findings
 1. **Complete Parity**: The PyTorch vectorized sorting implementation yields exactly the same values (up to floating point precision limits) as the original baseline NumPy loop, proving zero model drift.
-2. **Massive Speedup**: Applying column-wise sorting via GPU parallel kernels resolves the serial loop bottleneck. This is critical for scaling to real datasets like `st_CESC_test.h5ad` which contains 700k+ cells.
+2. **Massive Speedup**: Applying column-wise sorting via GPU parallel kernels resolves the serial loop bottleneck. The benchmark above was run on a 5000-cell subset (see Test Parameters); the speedup matters when scaling to full real slides, which can reach hundreds of thousands of cells.
