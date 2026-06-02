@@ -31,7 +31,9 @@ from lumina_st.benchmarks.adapters import (
     CellTAdapter,
     KNNAdapter,
     MeanAdapter,
+    ReferenceRegressionAdapter,
     SpaIMAdapter,
+    SpatialNeighborAvgAdapter,
     STMCDIAdapter,
     TISSUEAdapter,
 )
@@ -49,6 +51,13 @@ def make_synthetic_coad(n_cells: int = 200, seed: int = 0) -> ad.AnnData:
     adata = ad.AnnData(X=X)
     adata.var_names = all_genes
     adata.obs["cancer_type"] = ["COAD"] * n_cells
+    # Physical tissue coordinates so the spatial-neighbour baseline has a real
+    # geometry to exploit (a jittered square grid over the cells).
+    side = int(np.ceil(np.sqrt(n_cells)))
+    gx, gy = np.meshgrid(np.arange(side), np.arange(side))
+    grid = np.stack([gx.ravel(), gy.ravel()], axis=1)[:n_cells].astype(np.float64)
+    grid += rng.normal(0.0, 0.05, size=grid.shape)
+    adata.obsm["spatial"] = grid
     return adata
 
 
@@ -72,6 +81,9 @@ def main() -> int:
     adapters = [
         MeanAdapter(),
         KNNAdapter(k=10),
+        # Clean-room neutral baselines (pure numpy, no external package).
+        SpatialNeighborAvgAdapter(k=10),
+        ReferenceRegressionAdapter(alpha=1.0),
         # External competitors — all record unavailable until installed.
         SpaIMAdapter(reference_adata=None),
         TISSUEAdapter(base_imputer=_mean_base, alpha=0.1),
