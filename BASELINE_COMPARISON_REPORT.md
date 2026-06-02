@@ -2,6 +2,16 @@
 
 This report validates the parity between our refactored **LuminaST** package and the pristine **stPainter** baseline, demonstrating the numerical impact of mathematical corrections implemented in our flow matching sampler and classifier-free guidance (CFG).
 
+> [!NOTE]
+> **Reproducibility / evidence.** The numerical table was produced by
+> `scripts/e2e/compare_outputs.py` against the gated `baselines/stPainter-original`
+> audit clone. To reproduce, seed the run via `lumina_st.set_seed(<seed>)` and
+> record the seed, checkpoint paths, the `st_*_test.h5ad` revision, and the
+> hardware profile. These are parity deltas *against the baseline's own output*
+> (lower correlation in the corrected configuration is the intended result); they
+> are not a performance-vs-baseline claim, which remains gated by
+> `../docs/CLAIM_LEDGER.md`.
+
 ---
 
 ## Metric Evaluation Methodology
@@ -29,7 +39,7 @@ During conditional flow-matching inference:
 1. **The Starting Point ($t = t_{\text{forward}} = 0.9$)**: The model encodes the observed target ST slice to the VAE latent space, adds noise up to time $t = 0.9$ (which is mostly noise), and uses the flow matching model to predict the velocity field and denoise it back to $t = 1.0$.
 2. **Baseline Buggy Behavior**:
    - **ODE Range Bug**: The stPainter baseline initialized the ODE solver at the noisy $t=0.9$ state but integrated it over the time range $t \in [0.0, 1.0]$. This is mathematically incorrect because the starting state is noised to $0.9$, while the solver integrated as if it started at $0.0$.
-   - **CFG Bug**: During classifier-free guidance, the baseline used class index `0` (COAD) as the unconditional class token, which bled colon cancer specific transcriptomic signatures into other tissue types (e.g., CESC breast cancer).
+   - **CFG Bug**: During classifier-free guidance, the baseline used class index `0` (COAD) as the unconditional class token, which bled colon cancer specific transcriptomic signatures into other tissue types (e.g., CESC, cervical squamous cell carcinoma).
 3. **Corrected Model Behavior**:
    - Our corrected code integrates the ODE solver strictly over the correct interval $t \in [0.9, 1.0]$ and uses the proper null token `21` for class dropouts. This prevents cancer bleed-through, leading to a different, biologically cleaner latent state representation (which explains why the correlation against the buggy baseline output drops to ~0.20).
 

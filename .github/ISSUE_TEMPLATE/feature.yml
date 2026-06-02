@@ -1,0 +1,29 @@
+name: Feature
+description: Propose a feature for LuminaST.
+labels: [feature]
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What should be added?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist of testable criteria.
+    validations:
+      required: true
+  - type: checkboxes
+    id: guardrails
+    attributes:
+      label: Guardrails
+      options:
+        - label: Will not vendor or copy baseline source (stPainter / prior art).
+          required: true
+        - label: Will not reference unrelated sibling-project brands (aether-3d, factorgraph-st, niche-lens-st).
+          required: true
+        - label: Will not claim performance vs baselines without local-test evidence (see `../docs/CLAIM_LEDGER.md`).
+          required: true
