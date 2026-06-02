@@ -115,8 +115,13 @@ def main(args: argparse.Namespace) -> None:
         n_partitions=args.n_folds,
         hvg_k=(10, 20, 50, 100),
         seed=args.seed,
+        coords=coords,  # enable 2-D spatially-windowed SSIM (reference-comparable)
     )
     metrics.update(_flatten_pergene(pergene))
+    # SSIM-definition provenance (contract rejects strings: 1.0=spatial, 0.0=surrogate).
+    metrics["pergene_recovery_ssim_spatial_mode"] = (
+        1.0 if pergene.get("ssim_mode") == "spatial" else 0.0
+    )
 
     # === Block 2: clustering agreement vs REAL labels ========================
     print("[INFO] Block 2: clustering ARI/AMI/NMI/homo vs annotation + spatial_cluster...")
