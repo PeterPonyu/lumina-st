@@ -2,7 +2,7 @@
 
 **Target API for schema-aware spatial transcriptomics enhancement and imputation**
 
-LuminaST is a local research package for spatial transcriptomics (ST) enhancement and imputation experiments. Current evidence supports synthetic/local-small smoke validation; pan-cancer, zero-shot, platform-transfer, and baseline-superiority claims remain gated by `../docs/CLAIM_LEDGER.md`.
+LuminaST is a local research package for spatial transcriptomics (ST) enhancement and imputation experiments. Current evidence supports synthetic/local-small smoke validation; pan-cancer, zero-shot, platform-transfer, and baseline-superiority claims remain gated by [`docs/CLAIM_LEDGER.md`](./docs/CLAIM_LEDGER.md).
 
 Given a schema-valid ST slice, the target API returns:
 - an enhanced latent embedding for downstream evaluation;
@@ -51,7 +51,7 @@ enhanced = imputer.enhance(st_slice)          # returns AnnData with .obsm['late
 ## Architecture (High Level)
 
 1. **Latent Encoder** — Lightweight VAE (scVI-style or internal) for reference-atlas latent experiments → 50/100-dim latents.
-2. **Conditional Flow Matching** — `LatentVelocityNet` (DiT-style transformer with class conditioning + CFG) learns the velocity field of the latent distribution.
+2. **Conditional Flow Matching** — `LuminaTransformer` (DiT-style transformer with class conditioning + CFG, in `src/lumina_st/models/lumina_transformer.py`) learns the velocity field of the latent distribution.
 3. **Guided Imputation** — For a new ST observation, encode observed genes → partial noise forward to `t_forward` → conditional reverse sampling (with cancer-type guidance) → decode + sparsity-aware post-processing.
 
 This architecture defines the local LuminaST implementation surface. Publication claims are controlled by the claim ledger and must be validated with local benchmarks before manuscript use.
@@ -60,17 +60,18 @@ This architecture defines the local LuminaST implementation surface. Publication
 
 LuminaST is an independent package and manuscript track for spatial-transcriptomics enhancement. The public stPainter preprint and repository are treated as prior art for the general research problem and for audit comparison only; LuminaST's user-facing API, documentation, validation plan, figures, and manuscript claims must be written from local evidence.
 
-See [BASELINE_COMPARISON.md](./BASELINE_COMPARISON.md) and the immutable audit clone in `../baselines/stPainter-original/` for traceability and leakage checks. Claims graduate to the manuscript only through the project claim ledger and reproducible benchmark artifacts, not by inheriting claims from the reference work.
+See [BASELINE_COMPARISON.md](./BASELINE_COMPARISON.md) for traceability and leakage checks. An immutable audit clone of the prior-art repository may be placed at `baselines/stPainter-original/` for side-by-side auditing; it is **external and optional** — it is not part of this repository and is not required to use LuminaST. Claims graduate to the manuscript only through the project claim ledger and reproducible benchmark artifacts, not by inheriting claims from the reference work.
 
 **Prior-art citation** (to appear in final paper):
 > Yang, Y. et al. "Enhancing Pan-cancer Spatial Transcriptomics at Single-cell Resolution with stPainter." bioRxiv (2026).
 
-## Status (2026-05-21)
+## Status
 
-- **Phase 0** — Skeletons, audit baselines, git repos, data docs, 5090 verification: **complete**
-- **Phase 1** — Clean-room `flow/` primitives (Linear/GVP/VP paths, FlowTransport, FlowSampler, ODE/SDE integrators, CFG-ready): **complete** — 4 unit tests passing, zero original strings.
+- **Phase 0** — Skeletons, audit baselines, git repos, data docs: **complete**
+- **Phase 1** — Clean-room `flow/` primitives (Linear/GVP/VP paths, `FlowTransport`, `FlowSampler`, ODE/SDE integrators, CFG-ready): **complete**, zero original strings.
+- **Phase 2** — High-level API (`LuminaImputer`), latent encoders (`lumina_st/latents/`), `LuminaTransformer`, Lightning training module, guided imputation, and the `lumina_st/benchmarks/` suite: **implemented**.
 
-Next: Phase 2 (LuminaST high-level API, latent encoder, transformer, guided imputation).
+The full suite runs via `python -m pytest` (see CI for the current pass count). Methodological scope is locked by tests; biological/superiority claims remain gated by the claim ledger.
 
 Target: two independent publication-grade packages and manuscript tracks once the claim ledger, benchmark contracts, data cards, and reproducible figure artifacts support the intended claims.
 
