@@ -42,6 +42,53 @@ class TestSSIM:
     def test_empty_input_returns_nan(self) -> None:
         assert math.isnan(ssim(np.array([]), np.array([])))
 
+    def test_spatial_windowed_identical_scores_1(self) -> None:
+        # Windowed SSIM must still report 1.0 for an exact reconstruction.
+        xs, ys = np.meshgrid(np.arange(16), np.arange(16))
+        coords = np.column_stack([xs.ravel(), ys.ravel()]).astype(float)
+        rng = np.random.default_rng(3)
+        a = rng.normal(size=coords.shape[0])
+        assert ssim(a, a, spatial=coords) == pytest.approx(1.0, abs=1e-9)
+
+    def test_spatial_windowed_validates_coord_shape(self) -> None:
+        with pytest.raises(ValueError):
+            ssim(np.zeros(9), np.zeros(9), spatial=np.zeros((9, 1)))  # need >=2 cols
+        with pytest.raises(ValueError):
+            ssim(np.zeros(9), np.zeros(9), spatial=np.zeros((8, 2)))  # length mismatch
+
+    def test_spatial_vs_surrogate_diverge_on_local_texture(self) -> None:
+        """Parity regression for issue #217: 1-D surrogate vs 2-D spatial SSIM.
+
+        Construct a field whose *coarse* spatial structure is reproduced exactly
+        but whose *fine local texture* is replaced by independent noise. The 1-D
+        global surrogate (no spatial windowing) is dominated by the matching
+        coarse structure and reports a near-perfect score, while the
+        spatially-windowed SSIM sees that within each local window the texture is
+        uncorrelated and scores substantially lower. This is exactly the
+        spatial-texture sensitivity the surrogate lacks; the two definitions must
+        therefore diverge. (On origin/main `ssim` has no `spatial=` kwarg, so this
+        test fails there — proving the metric definition actually changed.)
+        """
+        grid = 24
+        xs, ys = np.meshgrid(np.arange(grid), np.arange(grid))
+        coords = np.column_stack([xs.ravel(), ys.ravel()]).astype(float)
+        # Coarse blocky region means (shared by truth and recon -> fools global SSIM).
+        coarse = (((xs // 6) + (ys // 6)).astype(float) * 10.0).ravel()
+        rng = np.random.default_rng(7)
+        truth = coarse + rng.normal(scale=1.0, size=coarse.size)
+        # Same coarse structure, but the fine local texture is independent noise.
+        recon = coarse + rng.normal(scale=1.0, size=coarse.size)
+
+        s_global = ssim(truth, recon)                       # 1-D surrogate
+        s_spatial = ssim(truth, recon, spatial=coords, n_windows=8)
+
+        # Global surrogate is fooled high by the matching coarse structure.
+        assert s_global > 0.9
+        # Spatial SSIM detects the destroyed local texture and scores well below.
+        assert s_spatial < 0.8
+        # The two definitions provably diverge (not an apples-to-apples metric).
+        assert (s_global - s_spatial) > 0.1
+
 
 class TestJensenShannon:
     def test_identical_distributions_zero(self) -> None:

@@ -133,8 +133,14 @@ def _scale_max(col: np.ndarray) -> np.ndarray:
     return col / m if m > 0 else col
 
 
-def _per_gene_scores(observed: np.ndarray, recovered: np.ndarray) -> dict[str, float]:
-    """PCC / Spearman / RMSE / SSIM / JSD for ONE gene column."""
+def _per_gene_scores(observed: np.ndarray, recovered: np.ndarray,
+                     coords: np.ndarray | None = None) -> dict[str, float]:
+    """PCC / Spearman / RMSE / SSIM / JSD for ONE gene column.
+
+    When ``coords`` (the per-spot ``obsm['spatial']`` array) is supplied, SSIM is
+    the 2-D spatially-windowed structural-similarity index (reference-comparable);
+    otherwise it falls back to the 1-D global surrogate.
+    """
     o = np.asarray(observed, dtype=np.float64).reshape(-1)
     r = np.asarray(recovered, dtype=np.float64).reshape(-1)
     o_pos = np.clip(o, 0.0, None)
@@ -144,7 +150,8 @@ def _per_gene_scores(observed: np.ndarray, recovered: np.ndarray) -> dict[str, f
         "spearman": spearman_rank(o, r),
         "rmse": _rmse(o, r),
         # SSIM/JS on max-scaled non-negative profiles (spatial-baseline convention).
-        "ssim": ssim(_scale_max(o), _scale_max(r)),
+        # Spatially-windowed when coords are available (matches reference SSIM).
+        "ssim": ssim(_scale_max(o), _scale_max(r), spatial=coords),
         "jsd": jensen_shannon_divergence(o_pos, r_pos, base=2.0),
     }
 
@@ -156,6 +163,7 @@ def pergene_recovery_stats(
     n_partitions: int = 5,
     hvg_k: Sequence[int] = (10, 20, 50, 100),
     seed: int = 0,
+    coords: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Per-gene recovery statistics over the ``impute_mask``-observed genes.
 
@@ -183,10 +191,14 @@ def pergene_recovery_stats(
         n_partitions: number of gene partitions for spread estimation.
         hvg_k: top-K HVG cut-offs to average over.
         seed: RNG seed for the partition assignment.
+        coords: optional (n_cells, >=2) ``obsm['spatial']`` coordinates. When
+            supplied, per-gene SSIM is the 2-D spatially-windowed index
+            (reference-comparable, ``ssim_mode='spatial'``); otherwise the 1-D
+            global surrogate is used (``ssim_mode='surrogate'``).
 
     Returns:
-        Nested dict with keys ``schema_version``, ``n_partitions``, ``n_genes``,
-        ``method_note`` (honesty label), and ``per_metric`` ->
+        Nested dict with keys ``schema_version``, ``ssim_mode``, ``n_partitions``,
+        ``n_genes``, ``method_note`` (honesty label), and ``per_metric`` ->
         per-K -> {mean, gene_partition_ci_low, gene_partition_ci_high,
         n_finite_genes, degenerate, per_partition_means}.
     """
@@ -195,10 +207,12 @@ def pergene_recovery_stats(
     gene_var = np.asarray(gene_var, dtype=np.float64)
     n_genes = observed.shape[1]
 
+    coords_arr = np.asarray(coords, dtype=np.float64) if coords is not None else None
+
     metric_names = ("pcc", "spearman", "rmse", "ssim", "jsd")
     per_gene: dict[str, np.ndarray] = {m: np.full(n_genes, np.nan) for m in metric_names}
     for g in range(n_genes):
-        sc = _per_gene_scores(observed[:, g], recovered[:, g])
+        sc = _per_gene_scores(observed[:, g], recovered[:, g], coords=coords_arr)
         for m in metric_names:
             per_gene[m][g] = sc[m]
 
@@ -213,6 +227,7 @@ def pergene_recovery_stats(
 
     out: dict[str, Any] = {
         "schema_version": "1",
+        "ssim_mode": "spatial" if coords_arr is not None else "surrogate",
         "n_partitions": int(n_partitions),
         "n_genes": int(n_genes),
         "method_note": (
