@@ -32,7 +32,7 @@ import numpy as np
 
 @dataclass
 class AdapterInput:
-    """The shape every adapter receives. See docs/LUMINAST_PRIORITY_ENHANCEMENTS.md."""
+    """The shape every adapter receives (the shared adapter contract)."""
 
     input_h5ad: ad.AnnData
     held_out_genes: list[str] = field(default_factory=list)
