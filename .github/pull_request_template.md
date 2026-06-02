@@ -15,6 +15,14 @@
 ## Motivation
 <!-- Link to issue or explain what this unlocks -->
 
+## Related issues
+<!-- Link each issue this PR touches. Use the correct keyword:
+     Closes #N  →  PR fully resolves the issue (auto-closes on merge)
+     Refs #N    →  PR is related but does NOT close the issue
+     Part of #N →  PR is one piece of a larger issue/epic -->
+- Closes #
+- Refs #
+
 ## Files Changed
 | File | Change |
 |------|--------|

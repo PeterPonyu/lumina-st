@@ -192,11 +192,26 @@ class FlowSampler:
         model_kwargs: Optional[Dict[str, Any]] = None,
         uncond_model_kwargs: Optional[Dict[str, Any]] = None,
         t_forward: Optional[float] = None,
+        x_start: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Integrate the probability-flow ODE from noise to data.
+        """Integrate the probability-flow ODE from noise (or a noised signal) to data.
 
-        ``shape`` is required for meaningful sampling; if omitted, a tiny
-        placeholder shape is used only for backwards-compatible smoke tests.
+        Two modes:
+
+        * **Unconditional sampling** (``t_forward is None``): start from pure
+          noise ``x0 ~ N(0, I)`` of the given ``shape`` and integrate the ODE
+          over ``[0, 1]``. ``shape`` is required for meaningful sampling; if
+          omitted, a tiny placeholder shape is used only for backwards-compatible
+          smoke tests.
+
+        * **Guided imputation** (``t_forward`` set): forward-diffuse the observed
+          clean signal ``x_start`` to time ``t_forward`` along the configured
+          path — ``x_t = alpha(t_forward) * x_start + sigma(t_forward) * x0`` via
+          :meth:`FlowTransport.get_noisy_xt` — and integrate the reverse ODE over
+          ``[t_forward, 1]``. This is a mathematically sound forward-diffusion
+          step; the previous placeholder ``x = randn * t_forward**0.5`` was not a
+          valid noising operator and discarded ``x_start`` entirely (issue #251).
+          ``x_start`` is required in this mode.
 
         Classifier-free guidance is applied here when ``cfg_scale != 1.0``: the
         conditional drift (from ``model_kwargs``) and the unconditional drift
@@ -211,16 +226,29 @@ class FlowSampler:
         cfg_scale = validate_guidance_scale(cfg_scale)
 
         device = next(model.parameters()).device
-        if shape is None:
-            # Infer from a dummy forward (common pattern)
-            dummy = torch.zeros(1, device=device)
-            shape = (1, *dummy.shape[1:])  # placeholder – user should pass real shape
 
-        x = torch.randn(shape, device=device)
         if t_forward is not None:
-            # Start from a partially noised state (used in guided imputation)
-            # For simplicity we just scale here; real usage will do proper forward diffusion
-            x = x * (t_forward ** 0.5)
+            # Guided imputation: properly forward-diffuse the observed signal.
+            if x_start is None:
+                raise ValueError(
+                    "sample_ode(t_forward=...) performs forward diffusion of a "
+                    "clean starting signal: pass x_start (the observed data to be "
+                    "partially noised). Leave t_forward=None to sample from pure "
+                    "noise."
+                )
+            x_start = x_start.to(device)
+            t0 = float(t_forward)
+            t_vec = torch.full(
+                (x_start.shape[0],), t0, device=device, dtype=x_start.dtype
+            )
+            x, _ = self.transport.get_noisy_xt(x_start, t_vec)
+        else:
+            t0 = 0.0
+            if shape is None:
+                # Infer from a dummy forward (common pattern)
+                dummy = torch.zeros(1, device=device)
+                shape = (1, *dummy.shape[1:])  # placeholder – user should pass real shape
+            x = torch.randn(shape, device=device)
 
         cond_kwargs = model_kwargs or {}
 
@@ -240,7 +268,7 @@ class FlowSampler:
 
         integrator = ode(
             drift,
-            t0=0.0,
+            t0=t0,
             t1=1.0,
             num_steps=num_steps,
             solver_type=solver,

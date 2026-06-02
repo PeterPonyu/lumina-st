@@ -470,6 +470,7 @@ class LuminaImputer:
         *,
         reference_adata: Optional[ad.AnnData] = None,
         train_loader: Optional[DataLoader] = None,
+        val_loader: Optional[DataLoader] = None,
         **trainer_kwargs,
     ) -> pl.Trainer:
         """Train the flow model on a reference atlas.
@@ -477,6 +478,14 @@ class LuminaImputer:
         The package-level seed is applied before DataLoader/Trainer construction
         so repeated smoke runs with the same ``LuminaSTConfig.seed`` are
         reproducible.
+
+        When ``val_loader`` is provided and no explicit ``trainer`` is passed,
+        validation-driven model selection is wired up (issue #146): a
+        ``ModelCheckpoint(monitor="val_loss")`` selects/saves the best epoch and,
+        if ``config.early_stopping_patience`` is set, an ``EarlyStopping`` callback
+        halts training when ``val_loss`` stops improving. The
+        ``LuminaFlowModule.validation_step`` logs ``val_loss`` so these callbacks
+        have a metric to monitor.
         """
         pl.seed_everything(self.config.seed, workers=True)
         if train_loader is None:
@@ -503,12 +512,44 @@ class LuminaImputer:
             )
 
         if trainer is None:
+            callbacks: list[pl.Callback] = []
+            if val_loader is not None:
+                from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+                ckpt_dir = Path(self.config.output_dir) / "checkpoints"
+                callbacks.append(
+                    ModelCheckpoint(
+                        monitor="val_loss",
+                        mode="min",
+                        save_top_k=1,
+                        save_last=True,
+                        dirpath=str(ckpt_dir),
+                        filename="best-{epoch:02d}-{val_loss:.4f}",
+                    )
+                )
+                if self.config.early_stopping_patience is not None:
+                    callbacks.append(
+                        EarlyStopping(
+                            monitor="val_loss",
+                            mode="min",
+                            patience=self.config.early_stopping_patience,
+                        )
+                    )
+
             trainer = pl.Trainer(
                 max_epochs=self.config.max_epochs,
                 gradient_clip_val=self.config.gradient_clip_val,
                 default_root_dir=str(self.config.output_dir),
+                callbacks=callbacks or None,
                 **trainer_kwargs,
             )
 
-        trainer.fit(self.module, train_dataloaders=train_loader)
+        if val_loader is not None:
+            trainer.fit(
+                self.module,
+                train_dataloaders=train_loader,
+                val_dataloaders=val_loader,
+            )
+        else:
+            trainer.fit(self.module, train_dataloaders=train_loader)
         return trainer

@@ -76,6 +76,15 @@ class LuminaSTConfig(BaseModel):
     weight_decay: float = 0.0
     ema_decay: float = 0.9999
 
+    # Learning-rate schedule (issue #134). Defaults preserve the historical
+    # constant-LR behavior: with lr_schedule="constant" and warmup_steps=0,
+    # configure_optimizers returns a bare AdamW exactly as before. adaLN-Zero
+    # DiT-style flow models are unstable in the first few hundred steps without
+    # warmup and benefit from cosine decay afterward, so both are configurable.
+    warmup_steps: int = 0
+    lr_schedule: Literal["constant", "cosine", "linear"] = "constant"
+    min_lr: float = 0.0
+
     train_eps: float = 0.0
     sample_eps: float = 0.0
 
@@ -83,6 +92,11 @@ class LuminaSTConfig(BaseModel):
     num_workers: int = 4
     max_epochs: int = 100
     gradient_clip_val: float = 1.0
+    # Validation-driven model selection (issue #146). When a val loader is used,
+    # ``early_stopping_patience`` (if set) wires an EarlyStopping callback on
+    # ``val_loss``; ``None`` disables early stopping (best-checkpoint selection
+    # via ModelCheckpoint still runs).
+    early_stopping_patience: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Sampling / Imputation (inference)

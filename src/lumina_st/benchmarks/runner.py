@@ -3,9 +3,8 @@ emit a results JSON.
 
 The output JSON schema is keyed by (dataset, panel, method) and includes per-
 gene metrics + adapter provenance, so downstream figure scripts read it
-without re-running anything. Schema is documented in
-`benchmark_contracts/luminast_external_methods.json` and asserted by
-`tests/benchmarks/test_runner.py`.
+without re-running anything. The schema is defined by the dataclasses in
+`contract.py` and asserted by `tests/benchmarks/test_runner.py`.
 """
 
 from __future__ import annotations
