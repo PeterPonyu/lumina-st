@@ -41,7 +41,7 @@ During conditional flow-matching inference:
    - **ODE Range Bug**: The stPainter baseline initialized the ODE solver at the noisy $t=0.9$ state but integrated it over the time range $t \in [0.0, 1.0]$. This is mathematically incorrect because the starting state is noised to $0.9$, while the solver integrated as if it started at $0.0$.
    - **CFG Bug**: During classifier-free guidance, the baseline used class index `0` (COAD) as the unconditional class token, which bled colon cancer specific transcriptomic signatures into other tissue types (e.g., CESC, cervical squamous cell carcinoma).
 3. **Corrected Model Behavior**:
-   - Our corrected code integrates the ODE solver strictly over the correct interval $t \in [0.9, 1.0]$ and uses the proper null token `21` for class dropouts. This prevents cancer bleed-through, leading to a different, biologically cleaner latent state representation (which explains why the correlation against the buggy baseline output drops to ~0.20).
+   - Our corrected code integrates the ODE solver strictly over the correct interval $t \in [0.9, 1.0]$ and uses the proper CFG null-class token (the index equal to the number of registered cancer types — e.g. `7` with the current default pan-cancer registry, not the legacy 21-cancer value) for class dropouts. This prevents cancer bleed-through, leading to a different, biologically cleaner latent state representation (which explains why the correlation against the buggy baseline output drops to ~0.20).
 
 ---
 
