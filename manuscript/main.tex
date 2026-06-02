@@ -54,7 +54,7 @@ Single-cell-resolution spatial transcriptomics is constrained by the gene
 panel and per-transcript detection rate of the imaging platform. We
 introduce \textbf{\textsc{LuminaST}}, a schema-aware enhancement framework that
 combines a latent flow-matching imputer with a first-party split-conformal
-uncertainty wrapper. Across a synthetic benchmark of six adapter contracts
+uncertainty wrapper. Across a synthetic benchmark of seven adapter contracts
 (mean, kNN, LuminaST, and four external competitors evaluated via shared
 input/output schemas) the framework produces calibrated 90~\% prediction
 intervals whose empirical coverage tracks the nominal target within the
@@ -84,7 +84,10 @@ benchmarks make that reference dependence an explicit evaluation risk rather
 than a hidden preprocessing detail~\cite{Li2023DeconvolutionBenchmark,
 ClusteringIntegrationBenchmark2024}. Prior art covers alignment-based,
 generative~\cite{Lopez2018scVI}, style-transfer~\cite{Song2025SpaIM}, and
-uncertainty-aware approaches~\cite{Sun2024TISSUE}; we cite these as
+uncertainty-aware approaches~\cite{Sun2024TISSUE}; reference-based ST
+gene-imputation methods~\cite{Biancalani2021Tangram,Lopez2019gimVI,%
+Abdelaal2020SpaGE,Chen2021stPlus,Wan2023SpatialScope} are the de-facto
+baselines we frame against. We cite these as
 motivation rather than copying their methodology. \textsc{LuminaST} contributes
 three components: a uniform adapter contract that enables controlled
 comparison under a shared input/output schema; first-party split-conformal
@@ -142,6 +145,14 @@ $\hat{q}_j = \mathrm{Quantile}\!\left[r_j, (1-\alpha)(1+1/n_{\text{cal}})\right]
 For each test cell the prediction interval is
 $[\hat{x}_j - \hat{q}_j,\ \hat{x}_j + \hat{q}_j],$ and the empirical
 coverage on the test cells is reported alongside the point metric.
+The split-conformal guarantee requires the calibration and test residuals to
+be exchangeable. This holds when the base imputer is permutation-symmetric
+over cells (e.g.\ \texttt{mean}, \texttt{knn}), since it is run once on the
+full matrix and only the \emph{scoring} is split. For a fitted imputer trained
+on the same cells (e.g.\ \texttt{lumina\_st}) the model has effectively seen
+the calibration points, so exchangeability can break and the reported coverage
+may be optimistic unless the imputer is fit on a disjoint set; we revisit this
+in the Limitations.
 
 \subsection{Training and inference protocol}
 \label{sec:training-protocol}
@@ -175,7 +186,7 @@ DEG identification with Benjamini-Hochberg FDR correction
 
 \textsc{LuminaST} comprises four components, each with independent tests.
 A uniform adapter contract (Section~\ref{sec:bench-contract})
-runs six imputers on identical inputs with held-out marker genes masked
+runs seven imputers on identical inputs with held-out marker genes masked
 before any method sees the data. A split-conformal wrapper
 (Section~\ref{sec:bench-contract}) attaches calibrated $(1-\alpha)$ prediction
 intervals to any base imputer with no retraining. A
@@ -273,7 +284,11 @@ empirical-vs-nominal coverage and mean interval width.
 Pan-context behavior is assessed by leave-one-context CV: for each held-out
 context the adapter is constructed via a factory that receives only the
 other contexts. We report per-fold mean Pearson and bootstrap 95\%
-confidence intervals over $K$ folds.
+confidence intervals over $K=4$ folds (Figure~\ref{fig:loo}). With only $K=4$
+folds the percentile bootstrap interval is a rough indication of dispersion,
+not an asymptotically valid confidence interval; we therefore also report the
+per-fold values directly in Figure~\ref{fig:loo} and treat the band as
+qualitative until more contexts are available at real-data graduation.
 
 \begin{figure}[t]
   \centering
@@ -313,23 +328,24 @@ the long-tail distribution of rare cell types in COAD vs OV vs CESC
 slides), so reported recovery numbers should not be read as transfer
 guarantees. Second, the conformal calibration produces coverage
 guarantees that are conditional on exchangeability between calibration
-and test residuals; that exchangeability has been verified for the
-synthetic noise model but graduates to \texttt{paper-ready} only after
-the Day~3 real-data evidence arrives via
-\texttt{docs/DATA\_PREP\_CALENDAR.md}. Third, sub-cluster discovery and
+and test residuals; that exchangeability holds for cell-permutation-symmetric
+base imputers but is not guaranteed for a fitted imputer trained on the same
+cells, and graduates to \texttt{paper-ready} only after real-data evidence
+arrives (tracked in the project claim ledger). Third, sub-cluster discovery and
 DEG validation helpers ship in \texttt{lumina\_st.benchmarks.subpopulation}
 but are demonstrated only on synthetic input; paired-protein spatial validation
 (see BASELINE\_COMPARISON.md \S2.4) is not in scope as the calendar does not
 include a paired-protein dataset.
-Fourth, the broader reference stack under
-\texttt{references/spatial\_omics\_pdfs/} adds platform-benchmark pressure:
+Fourth, the platform-benchmark
+literature~\cite{You2024SequencingST,Cervilla2026SixCancerPlatforms,%
+Wang2025ImagingFFPE,Rademacher2025TumorST} adds pressure:
 future real-data claims should stratify by assay family, FFPE/frozen handling,
 and tumor section preparation rather than reporting a single pooled metric.
 
 \subsection{Future work}
 
-The immediate next milestone is the calendar Day~3 cervix Xenium subset
-(see \texttt{docs/DATA\_PREP\_CALENDAR.md}), at which point the
+The immediate next milestone is the first real cervix Xenium subset, at
+which point the
 held-out gene panel recovery moves from synthetic to real evidence and
 the Sankey cluster-mapping composer skeleton at
 \texttt{lumina-st/manuscript/compose\_sankey.py} can be re-driven against
@@ -344,7 +360,7 @@ without linked evidence.
 
 Source code, tests, and the benchmark contract live in the LuminaST
 package. Synthetic placeholder data is produced deterministically by
-\texttt{scripts/data/prepare\_synthetic\_lumina.py}; the data card schema
+\texttt{scripts/data\_flow/generate\_synthetic\_st.py}; the data card schema
 and reproducibility metadata helper are documented in the package.
 
 \bibliographystyle{plain}
