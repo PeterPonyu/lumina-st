@@ -35,5 +35,7 @@ results/benchmark/*
 # Local OMX/runtime state
 .omc/
 
-# Generated data fixtures (produced by scripts/data_flow/generate_synthetic_st.py)
-data/
+# Generated data fixtures (produced by scripts/data_flow/generate_synthetic_st.py).
+# Anchored to the repo root so it does NOT also shadow the source package
+# `src/lumina_st/data/` (a bare `data/` pattern matches that dir at any depth).
+/data/
