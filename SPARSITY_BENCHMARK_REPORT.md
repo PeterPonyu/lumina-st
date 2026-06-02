@@ -1,6 +1,15 @@
 # Sparsity Constraint Benchmarking Report
 
-This report compares the performance and mathematical correctness of three sparsity post-processing implementations on the real CESC breast cancer dataset.
+This report compares the performance and mathematical correctness of three sparsity post-processing implementations on the real CESC (cervical squamous cell carcinoma) dataset.
+
+> [!NOTE]
+> **Reproducibility / evidence.** The numbers below were produced by
+> `scripts/e2e/benchmark_sparsity_versions.py`. To regenerate them deterministically,
+> seed the run via `lumina_st.set_seed(<seed>)` and record the seed, the exact
+> `st_CESC_test.h5ad` revision, and the hardware profile (CPU/GPU model) alongside
+> the table. Until a fully-logged run is committed, treat the timings as
+> indicative of relative speedup on the recorded hardware, not as a portable
+> absolute benchmark.
 
 ## Test Parameters
 - **Dataset**: `st_CESC_test.h5ad`
