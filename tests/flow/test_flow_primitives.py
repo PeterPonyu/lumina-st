@@ -13,11 +13,6 @@ Run with:
 import torch
 import pytest
 
-import sys
-from pathlib import Path
-# Allow running the test directly without pip install -e
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-
 from lumina_st.flow import (
     create_flow_transport,
     LinearPath,

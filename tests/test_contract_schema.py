@@ -29,11 +29,8 @@ CANONICAL = REPO_ROOT.parent / "scripts" / "contract" / "results_contract.py"
 
 def _import_vendored():
     import importlib
-    import sys
 
-    src = str(REPO_ROOT / "src")
-    if src not in sys.path:
-        sys.path.insert(0, src)
+    # sys.path already includes src/ via conftest.py / pyproject pythonpath
     return importlib.import_module(f"{PKG}.results_contract")
 
 
