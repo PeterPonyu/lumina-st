@@ -21,7 +21,7 @@ body:
     attributes:
       label: Guardrails
       options:
-        - label: Will not vendor or copy baseline source (stPainter / prior art).
+        - label: Will not vendor or copy baseline source (prior art).
           required: true
         - label: Will not reference unrelated sibling-project brands (aether-3d, factorgraph-st, niche-lens-st).
           required: true

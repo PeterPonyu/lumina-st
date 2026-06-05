@@ -58,12 +58,11 @@ This architecture defines the local LuminaST implementation surface. Publication
 
 ## Prior Art and Audit Boundary
 
-LuminaST is an independent package and manuscript track for spatial-transcriptomics enhancement. The public stPainter preprint and repository are treated as prior art for the general research problem and for audit comparison only; LuminaST's user-facing API, documentation, validation plan, figures, and manuscript claims must be written from local evidence.
+LuminaST is an independent package and manuscript track for spatial-transcriptomics enhancement. A public prior-art preprint and repository in this problem area are treated as prior art for the general research problem and for audit comparison only; LuminaST's user-facing API, documentation, validation plan, figures, and manuscript claims must be written from local evidence.
 
 An immutable audit clone of the prior-art repository may be placed at `baselines/prior-art-original/` for side-by-side auditing; it is **external and optional** — it is not part of this repository and is not required to use LuminaST. Claims graduate to the manuscript only through the project claim ledger and reproducible benchmark artifacts, not by inheriting claims from the reference work.
 
-**Prior-art citation** (to appear in final paper):
-> Yang, Y. et al. "Enhancing Pan-cancer Spatial Transcriptomics at Single-cell Resolution with stPainter." bioRxiv (2026).
+**Prior-art citation**: the relevant prior-art reference is tracked privately and will be cited in the manuscript bibliography. It is intentionally kept out of the public package documentation per the project's brand-independence policy.
 
 ## Status
 
