@@ -15,6 +15,7 @@ from lumina_st.metrics.imputation_metrics import (
     cluster_concordance,
     jensen_shannon_divergence,
     ssim,
+    ssim_2d_windowed,
 )
 
 
@@ -88,6 +89,26 @@ class TestSSIM:
         assert s_spatial < 0.8
         # The two definitions provably diverge (not an apples-to-apples metric).
         assert (s_global - s_spatial) > 0.1
+
+
+class TestSSIM2DWindowedPrimary:
+    """The PRIMARY claimed SSIM is now the true 2-D windowed value (skimage)."""
+
+    def test_identity_scores_one(self) -> None:
+        xs, ys = np.meshgrid(np.arange(24), np.arange(24))
+        coords = np.column_stack([xs.ravel(), ys.ravel()]).astype(float)
+        rng = np.random.default_rng(11)
+        a = rng.normal(size=coords.shape[0])
+        assert ssim_2d_windowed(a, a, spatial=coords) == pytest.approx(1.0, abs=1e-9)
+
+    def test_noise_degrades_score(self) -> None:
+        xs, ys = np.meshgrid(np.arange(24), np.arange(24))
+        coords = np.column_stack([xs.ravel(), ys.ravel()]).astype(float)
+        rng = np.random.default_rng(12)
+        a = rng.normal(size=coords.shape[0])
+        noisy = a + rng.normal(scale=0.6, size=a.size)
+        assert ssim_2d_windowed(a, noisy, spatial=coords) < ssim_2d_windowed(
+            a, a, spatial=coords)
 
 
 class TestJensenShannon:
