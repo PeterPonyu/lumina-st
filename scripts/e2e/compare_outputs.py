@@ -13,15 +13,15 @@ from lumina_st.core.lumina_imputer import LuminaImputer
 
 def _load_baseline_symbols():
     """Load optional frozen baseline audit-clone dependencies lazily."""
-    # The literal "stPainter-original" segment below names the on-disk path of
-    # the frozen baseline audit tree (an allowed brand-mention context — see
-    # docs policy). The surrounding prose is kept neutral so the user-visible
-    # precondition error reads as a path notice, not a brand framing.
-    baseline_root = Path("baselines/stPainter-original").resolve()
+    # Optional external audit clone of the prior-art reference implementation,
+    # expected at baselines/prior-art-original/. It is external and optional —
+    # not vendored in the standalone lumina-st package — so the import is lazy
+    # and guarded with an actionable path notice rather than a hard dependency.
+    baseline_root = Path("baselines/prior-art-original").resolve()
     if not baseline_root.exists():
         raise SystemExit(
             "compare_outputs.py requires the optional frozen baseline clone at "
-            "baselines/stPainter-original; it is not vendored in the standalone "
+            "baselines/prior-art-original; it is not vendored in the standalone "
             "lumina-st package."
         )
     sys.path.insert(0, str(baseline_root))
