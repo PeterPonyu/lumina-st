@@ -130,3 +130,33 @@ def test_runner_records_unavailable_methods_in_output():
     key = f"synthetic-coad/{panel.name}"
     assert aggregated["panels"][key]["never"]["status"].startswith("unavailable:")
     assert aggregated["panels"][key]["mean"]["status"] == "ok"
+
+
+def test_run_panel_scores_every_adapter_on_identical_protocol():
+    """#307: real adapters are all scored on the same held-out split / genes."""
+    adata = _make_adata_with_markers()
+    panel = get_panel("tme-immune-stromal")
+    results = run_panel([MeanAdapter(), KNNAdapter(k=5)], adata, panel)
+    # Same n_genes_scored and same task tag across every adapter.
+    assert {r.metrics_json["n_genes_scored"] for r in results} == {len(panel.genes)}
+    assert {r.metrics_json["task_type"] for r in results} == {"gene_recovery"}
+
+
+def test_run_panel_rejects_adapter_whose_task_is_not_gene_recovery():
+    """#309: a non-gene-recovery adapter cannot be run by the gene-recovery runner."""
+    from lumina_st.benchmarks.contract import BaseAdapter, TaskBoundaryError, TaskType
+
+    class _Denoiser(BaseAdapter):
+        name = "denoiser"
+        task_type = TaskType.DENOISING
+
+        def _impute(self, masked, inp):
+            raise RuntimeError("unreachable")
+
+    adata = _make_adata_with_markers()
+    panel = get_panel("tme-immune-stromal")
+    try:
+        run_panel([MeanAdapter(), _Denoiser()], adata, panel)
+    except TaskBoundaryError:
+        return
+    raise AssertionError("run_panel must reject a non-gene-recovery adapter (#309)")

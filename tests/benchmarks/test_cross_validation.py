@@ -207,3 +207,20 @@ def test_aggregate_cv_results_is_json_serializable():
     s = json.dumps(aggregated, default=str)
     loaded = json.loads(s)
     assert loaded["n_folds"] == 2
+
+
+def test_run_cv_rejects_factory_returning_non_gene_recovery_adapter():
+    """#309: every CV fold scores gene recovery; a denoising factory fails closed."""
+    from lumina_st.benchmarks.contract import TaskBoundaryError, TaskType
+
+    class _Denoiser(BaseAdapter):
+        name = "denoiser"
+        task_type = TaskType.DENOISING
+
+        def _impute(self, masked, inp):
+            raise RuntimeError("unreachable")
+
+    contexts = {n: _make_context(n, seed=i) for i, n in enumerate(("A", "B"))}
+    panel = get_panel("tme-immune-stromal")
+    with pytest.raises(TaskBoundaryError):
+        run_cv(contexts, stateless_factory(_Denoiser), panel)

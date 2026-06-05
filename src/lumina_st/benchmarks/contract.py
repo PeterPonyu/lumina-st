@@ -24,10 +24,45 @@ import subprocess
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 from typing import Any, Optional
 
 import anndata as ad
 import numpy as np
+
+
+class TaskType(str, Enum):
+    """The measurement an adapter/result represents (issue #309).
+
+    Task boundaries are *load-bearing*: a denoising or pathway/aggregate result
+    is NOT a held-out-gene-recovery measurement and must never be silently
+    scored or reported as one. The gene-recovery scorer
+    (`compute_imputation_metrics`) and the runner reject any task that is not
+    ``GENE_RECOVERY``, so a mislabeled result fails closed instead of producing
+    a misleading Pearson/Spearman row.
+    """
+
+    GENE_RECOVERY = "gene_recovery"
+    DENOISING = "denoising"
+    PATHWAY_AGGREGATE = "pathway_aggregate"
+
+
+class TaskBoundaryError(ValueError):
+    """Raised when a non-gene-recovery task is routed to gene-recovery scoring (#309)."""
+
+
+class EncoderLeakageError(ValueError):
+    """Raised when a held-out gene could structurally leak into the encoder input (#307).
+
+    Fail-closed: if the held-out genes cannot be proven absent from every input
+    the adapter conditions on (i.e., not actually zeroed in the layer the
+    adapter reads), we refuse to run rather than emit a leakage-contaminated
+    recovery number.
+    """
+
+
+class ProtocolParityError(ValueError):
+    """Raised when adapters in one comparison do not share one held-out protocol (#307)."""
 
 
 @dataclass
@@ -40,7 +75,73 @@ class AdapterInput:
     truth_layer: Optional[str] = None  # None means truth is .X (synthetic / masked-gene mode)
     seed: int = 0
     cancer_type: Optional[str] = None
+    # Which measurement this input represents. GENE_RECOVERY is the only task
+    # the held-out scorer / runner will score; anything else fails closed at the
+    # task boundary (issue #309).
+    task_type: TaskType = TaskType.GENE_RECOVERY
     extra: dict[str, Any] = field(default_factory=dict)
+
+    def protocol_signature(self) -> tuple:
+        """Canonical, order-insensitive description of the held-out protocol.
+
+        Two inputs sharing this signature are scored under an IDENTICAL protocol:
+        the same held-out split (sorted gene set), the same observed/truth layer
+        wiring (= same masking), and the same task type. The runner uses this to
+        enforce cross-adapter parity centrally rather than per-adapter (#307).
+        """
+        return (
+            tuple(sorted(self.held_out_genes)),
+            self.observed_layer,
+            self.truth_layer,
+            self.task_type.value,
+        )
+
+    def assert_no_encoder_leakage(self) -> None:
+        """Fail-closed guard that held-out genes cannot leak into the encoder (#307).
+
+        The adapter conditions only on the layer returned by ``masked_input()``
+        (``.X`` or ``observed_layer``). Recovery is only honest if every held-out
+        gene is (a) present in ``var_names`` so it *can* be masked, and (b)
+        actually zeroed in that observed layer. If either is structurally
+        violated, raise ``EncoderLeakageError`` instead of running.
+        """
+        if not self.held_out_genes:
+            return
+
+        var_names = list(self.input_h5ad.var_names)
+        missing = [g for g in self.held_out_genes if g not in var_names]
+        if missing:
+            raise EncoderLeakageError(
+                "Held-out gene(s) not in adata.var_names, so they cannot be "
+                f"masked before the encoder sees the input: {missing[:5]}"
+                f"{' ...' if len(missing) > 5 else ''}. A gene the masker cannot "
+                "reach is a structural leakage path — refusing to run."
+            )
+
+        masked = self.masked_input()
+        if self.observed_layer is not None and self.observed_layer not in masked.layers:
+            raise EncoderLeakageError(
+                f"observed_layer {self.observed_layer!r} is absent from the masked "
+                "input, so the adapter would fall back to an UNMASKED layer — "
+                "held-out genes could leak into the encoder. Refusing to run."
+            )
+
+        if self.observed_layer is not None:
+            obs = masked.layers[self.observed_layer]
+        else:
+            obs = masked.X
+        if hasattr(obs, "toarray"):
+            obs = obs.toarray()
+        obs = np.asarray(obs)
+        idx = [var_names.index(g) for g in self.held_out_genes]
+        leaked = obs[:, idx]
+        if not np.all(leaked == 0.0):
+            max_abs = float(np.abs(leaked).max())
+            raise EncoderLeakageError(
+                "Held-out gene columns are non-zero in the layer the adapter "
+                f"conditions on (max abs value {max_abs:g}). The encoder could "
+                "read held-out expression — refusing to run (#307)."
+            )
 
     def masked_input(self) -> ad.AnnData:
         """Return a copy of input_h5ad with held_out_genes zeroed in the observed layer."""
@@ -154,6 +255,11 @@ class BaseAdapter(ABC):
     """Abstract adapter base. Subclasses implement `_impute` and optionally `_check_available`."""
 
     name: str = "base"
+    # The measurement this adapter produces. Every concrete adapter under
+    # adapters/ is a held-out-gene imputer, so the default is GENE_RECOVERY. A
+    # denoising / pathway-aggregate adapter MUST override this so its result can
+    # never be silently scored as gene recovery (issue #309).
+    task_type: TaskType = TaskType.GENE_RECOVERY
 
     def __init__(self, **kwargs: Any) -> None:
         self.options = kwargs
@@ -183,6 +289,21 @@ class BaseAdapter(ABC):
                 status=f"unavailable:{reason}",
             )
 
+        # Task-boundary gate (#309): the adapter's declared task must match the
+        # input's task, and only GENE_RECOVERY reaches the gene-recovery scorer.
+        # These are protocol violations, not runtime failures, so they are
+        # raised (fail-closed) rather than captured as an "error:" status.
+        if inp.task_type != self.task_type:
+            raise TaskBoundaryError(
+                f"Adapter {self.name!r} declares task {self.task_type.value!r} but was "
+                f"handed an input tagged {inp.task_type.value!r}. A result can never be "
+                "scored under a task it was not produced for (#309)."
+            )
+
+        # Encoder-leakage gate (#307): prove held-out genes are zeroed in the
+        # layer the adapter conditions on before it ever sees the input.
+        inp.assert_no_encoder_leakage()
+
         # Audit boundary: zero held-out genes before the adapter sees them.
         masked = inp.masked_input()
 
@@ -196,7 +317,10 @@ class BaseAdapter(ABC):
                 truth=truth,
                 imputed=imputed,
                 held_out_genes=inp.held_out_genes,
+                task_type=inp.task_type,
             )
+        except (TaskBoundaryError, EncoderLeakageError):
+            raise
         except Exception as exc:
             return AdapterResult(
                 method=self.name,
@@ -220,6 +344,7 @@ def compute_imputation_metrics(
     truth: np.ndarray,
     imputed: ad.AnnData,
     held_out_genes: list[str],
+    task_type: TaskType = TaskType.GENE_RECOVERY,
 ) -> dict[str, Any]:
     """Per-gene and overall scoring under the held-out-gene benchmark contract.
 
@@ -230,7 +355,18 @@ def compute_imputation_metrics(
 
     All metrics are computed only on `held_out_genes` when provided; otherwise
     on every gene.
+
+    This function is the gene-recovery scorer and is the single chokepoint where
+    the task boundary is enforced (#309): it refuses to score anything that is
+    not ``TaskType.GENE_RECOVERY`` so a denoising / pathway-aggregate result can
+    never be silently reported as gene recovery.
     """
+    if task_type != TaskType.GENE_RECOVERY:
+        raise TaskBoundaryError(
+            f"compute_imputation_metrics is the gene-recovery scorer but was asked to "
+            f"score task {task_type.value!r}. Denoising / pathway-aggregate tasks are "
+            "NOT gene recovery and must use their own scorer (#309)."
+        )
     if "imputed" in imputed.layers:
         X_hat = imputed.layers["imputed"]
     else:
@@ -317,6 +453,11 @@ def compute_imputation_metrics(
         "n_genes_pearson_scored": len(pearson_vals),
         "n_genes_spearman_scored": len(spearman_vals),
         "n_cells": int(truth.shape[0]),
+        # Tag the measurement so a downstream reader can never mistake this row
+        # for a non-gene-recovery task (#309). This is a metadata string in the
+        # benchmark's open metrics dict, NOT a field on the byte-locked
+        # results_contract schema.
+        "task_type": TaskType.GENE_RECOVERY.value,
     }
 
 

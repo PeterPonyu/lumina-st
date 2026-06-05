@@ -16,8 +16,60 @@ from typing import Sequence
 
 import anndata as ad
 
-from .contract import AdapterInput, AdapterResult, BaseAdapter
+from .contract import (
+    AdapterInput,
+    AdapterResult,
+    BaseAdapter,
+    ProtocolParityError,
+    TaskBoundaryError,
+    TaskType,
+)
 from .panels import MarkerPanel
+
+
+def enforce_protocol_parity(
+    adapters: Sequence[BaseAdapter],
+    inp: AdapterInput,
+) -> None:
+    """Centrally enforce the #307/#309 protocol gates before any adapter runs.
+
+    Parity is enforced HERE, in the runner/contract layer, not per-adapter, so
+    every adapter is provably compared under one held-out protocol:
+
+    * Held-out gene protocol parity (#307): every adapter is scored on the SAME
+      ``AdapterInput`` (same held-out split, same scoring genes, same masking),
+      so the protocol signature is identical by construction. We assert the
+      signature is well-formed (non-empty held-out set) so an empty "score every
+      gene" run cannot masquerade as a held-out comparison.
+    * Encoder-leakage guard (#307): the shared input is checked once — if a
+      held-out gene could structurally leak into the encoder, no adapter runs.
+    * Task-boundary separation (#309): ``run_panel`` is the gene-recovery runner,
+      so the input and every adapter must declare ``GENE_RECOVERY``; a denoising
+      / pathway-aggregate adapter is rejected up front instead of being silently
+      scored as recovery.
+    """
+    if inp.task_type != TaskType.GENE_RECOVERY:
+        raise TaskBoundaryError(
+            f"run_panel is the gene-recovery runner but the input is tagged "
+            f"{inp.task_type.value!r}. Denoising / pathway-aggregate tasks need their "
+            "own runner+scorer; they cannot be reported as gene recovery (#309)."
+        )
+    if not inp.held_out_genes:
+        raise ProtocolParityError(
+            "run_panel requires a non-empty held-out gene set so every adapter is "
+            "compared on an identical held-out split (#307)."
+        )
+
+    # Encoder-leakage guard on the shared input (#307) — fail-closed for all.
+    inp.assert_no_encoder_leakage()
+
+    mismatched = [a.name for a in adapters if a.task_type != TaskType.GENE_RECOVERY]
+    if mismatched:
+        raise TaskBoundaryError(
+            "These adapters do not produce gene-recovery results and cannot be run by "
+            f"run_panel: {mismatched}. Their results would be scored under the wrong "
+            "task (#309)."
+        )
 
 
 def run_panel(
@@ -30,7 +82,12 @@ def run_panel(
     observed_layer: str | None = None,
     truth_layer: str | None = None,
 ) -> list[AdapterResult]:
-    """Run every adapter on the same held-out marker panel and return results."""
+    """Run every adapter on the same held-out marker panel and return results.
+
+    All adapters are handed the SAME ``AdapterInput`` and the #307/#309 gates are
+    enforced centrally via :func:`enforce_protocol_parity` before any adapter
+    runs, so the comparison is provably under one held-out protocol.
+    """
     inp = AdapterInput(
         input_h5ad=adata,
         held_out_genes=list(panel.genes),
@@ -40,6 +97,7 @@ def run_panel(
         cancer_type=cancer_type,
         extra={"dataset": dataset_name, "panel": panel.name},
     )
+    enforce_protocol_parity(adapters, inp)
     return [adapter.run(inp) for adapter in adapters]
 
 

@@ -27,7 +27,7 @@ from typing import Any, Callable, Sequence
 import anndata as ad
 import numpy as np
 
-from .contract import AdapterInput, BaseAdapter
+from .contract import AdapterInput, BaseAdapter, TaskBoundaryError, TaskType
 from .panels import MarkerPanel
 
 
@@ -73,6 +73,18 @@ def run_cv(
         t0 = time.perf_counter()
         adapter = adapter_factory(test_name, train_dict)
 
+        # Task-boundary separation (#309): every CV fold scores held-out gene
+        # recovery, so a factory that returns a denoising / pathway-aggregate
+        # adapter is rejected up front rather than silently scored as recovery.
+        if adapter.task_type != TaskType.GENE_RECOVERY:
+            raise TaskBoundaryError(
+                f"run_cv scores gene recovery, but the factory produced adapter "
+                f"{adapter.name!r} declaring task {adapter.task_type.value!r} for fold "
+                f"{test_name!r}. It cannot be reported as gene recovery (#309)."
+            )
+
+        # Every fold uses the SAME held-out panel (identical split / scoring
+        # genes / masking) so cross-fold protocol parity holds by construction (#307).
         inp = AdapterInput(
             input_h5ad=contexts[test_name],
             held_out_genes=list(panel.genes),
@@ -84,6 +96,9 @@ def run_cv(
                 "panel": panel.name,
             },
         )
+        # Encoder-leakage guard (#307): fail closed for this fold if held-out
+        # genes are not provably zeroed in the layer the adapter conditions on.
+        inp.assert_no_encoder_leakage()
         result = adapter.run(inp)
         runtime = time.perf_counter() - t0
 
