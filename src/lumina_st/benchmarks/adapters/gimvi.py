@@ -72,7 +72,8 @@ class GimVIAdapter(BaseAdapter):
 
             for candidate in ("scvi",):
                 try:
-                    mod = importlib.import_module(candidate)
+                    # Import for its side effect (ImportError if scvi is absent).
+                    importlib.import_module(candidate)
                     # Verify GIMVI is accessible within scvi-tools.
                     model_mod = importlib.import_module("scvi.model")
                     if not hasattr(model_mod, "GIMVI"):
