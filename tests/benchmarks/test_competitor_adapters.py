@@ -16,7 +16,11 @@ import numpy as np
 from lumina_st.benchmarks import AdapterInput
 from lumina_st.benchmarks.adapters import (
     CellTAdapter,
+    GimVIAdapter,
+    NovoSpaRcAdapter,
     STMCDIAdapter,
+    StDiffAdapter,
+    TangramAdapter,
     TISSUEAdapter,
 )
 
@@ -192,3 +196,156 @@ def test_cellt_runs_with_mocked_module_and_audit_holds():
             "AUDIT FAILURE: CellT saw non-zero values at held-out positions"
     finally:
         _clear_modules("cellt")
+
+
+# -- Tangram ----------------------------------------------------------------
+
+
+def test_tangram_unavailable_when_not_installed():
+    _clear_modules("tangram", "tangram_sc")
+    adata = _make_synthetic_adata()
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_005"], seed=0)
+    res = TangramAdapter(reference_adata=adata.copy()).run(inp)
+    assert res.status.startswith("unavailable:"), res.status
+    assert "tangram-not-installed" in res.status
+
+
+def test_tangram_unavailable_when_reference_missing():
+    fake = types.ModuleType("tangram")
+    sys.modules["tangram"] = fake
+    try:
+        adata = _make_synthetic_adata()
+        inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_005"], seed=0)
+        res = TangramAdapter(reference_adata=None).run(inp)
+        assert res.status.startswith("unavailable:"), res.status
+        assert "tangram-requires-reference" in res.status
+    finally:
+        _clear_modules("tangram")
+
+
+# -- gimVI -------------------------------------------------------------------
+
+
+def test_gimvi_unavailable_when_not_installed():
+    _clear_modules("scvi", "scvi.model")
+    adata = _make_synthetic_adata()
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_006"], seed=0)
+    res = GimVIAdapter(reference_adata=adata.copy()).run(inp)
+    assert res.status.startswith("unavailable:"), res.status
+    assert "gimvi-not-installed" in res.status
+
+
+def test_gimvi_unavailable_when_reference_missing():
+    fake_scvi = types.ModuleType("scvi")
+    fake_model = types.ModuleType("scvi.model")
+    fake_model.GIMVI = object  # type: ignore[attr-defined]
+    fake_scvi.model = fake_model  # type: ignore[attr-defined]
+    sys.modules["scvi"] = fake_scvi
+    sys.modules["scvi.model"] = fake_model
+    try:
+        adata = _make_synthetic_adata()
+        inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_006"], seed=0)
+        res = GimVIAdapter(reference_adata=None).run(inp)
+        assert res.status.startswith("unavailable:"), res.status
+        assert "gimvi-requires-reference" in res.status
+    finally:
+        _clear_modules("scvi", "scvi.model")
+
+
+# -- stDiff ------------------------------------------------------------------
+
+
+def test_stdiff_unavailable_when_not_installed():
+    _clear_modules("stDiff", "stdiff", "st_diff")
+    adata = _make_synthetic_adata()
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_002"], seed=0)
+    res = StDiffAdapter().run(inp)
+    assert res.status.startswith("unavailable:"), res.status
+    assert "stdiff-not-installed" in res.status
+
+
+def test_stdiff_runs_with_mocked_module_and_audit_holds():
+    seen: dict = {}
+    fake = types.ModuleType("stDiff")
+
+    class _FakeStDiff:
+        def __init__(self, n_steps: int = 1000, device: str = "cpu", reference=None):
+            self.n_steps = n_steps
+
+        def fit(self, adata: ad.AnnData):
+            seen["fit_X"] = np.asarray(adata.X).copy()
+
+        def impute(self, adata: ad.AnnData) -> ad.AnnData:
+            out = adata.copy()
+            out.layers["imputed"] = np.asarray(adata.X, dtype=np.float32).copy()
+            return out
+
+    fake.stDiff = _FakeStDiff  # type: ignore[attr-defined]
+    sys.modules["stDiff"] = fake
+    try:
+        adata = _make_synthetic_adata()
+        held_out = ["GENE_002", "GENE_008"]
+        inp = AdapterInput(input_h5ad=adata, held_out_genes=held_out, seed=0)
+        res = StDiffAdapter().run(inp)
+
+        assert res.status == "ok", res.status
+        assert res.imputed_h5ad is not None
+        assert "imputed" in res.imputed_h5ad.layers
+
+        var_names = list(adata.var_names)
+        idx = [var_names.index(g) for g in held_out]
+        assert np.all(seen["fit_X"][:, idx] == 0.0), \
+            "AUDIT FAILURE: stDiff saw non-zero values at held-out positions"
+    finally:
+        _clear_modules("stDiff")
+
+
+# -- NovoSpaRc ---------------------------------------------------------------
+
+
+def test_novosparc_unavailable_when_not_installed():
+    _clear_modules("novosparc")
+    adata = _make_synthetic_adata()
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=["GENE_001"], seed=0)
+    res = NovoSpaRcAdapter().run(inp)
+    assert res.status.startswith("unavailable:"), res.status
+    assert "novosparc-not-installed" in res.status
+
+
+def test_novosparc_runs_with_mocked_module_and_audit_holds():
+    seen: dict = {}
+    fake = types.ModuleType("novosparc")
+
+    class _FakeTissue:
+        def __init__(self, dataset, locations):
+            seen["dataset"] = np.asarray(dataset).copy()
+            self._n_locs = int(np.asarray(locations).shape[0])
+            self._n_genes = int(np.asarray(dataset).shape[1])
+
+        def setup_reconstruction(self, **kwargs):
+            seen["setup"] = True
+
+        def reconstruct(self, **kwargs):
+            self.sdge = np.zeros((self._n_locs, self._n_genes), dtype=np.float32)
+
+    fake.cm = types.SimpleNamespace(Tissue=_FakeTissue)  # type: ignore[attr-defined]
+    sys.modules["novosparc"] = fake
+    try:
+        adata = _make_synthetic_adata()
+        # Deterministic locations so the adapter does not synthesise a grid.
+        rng = np.random.default_rng(0)
+        adata.obsm["spatial"] = rng.random((adata.n_obs, 2)).astype(np.float32)
+        held_out = ["GENE_001", "GENE_010"]
+        inp = AdapterInput(input_h5ad=adata, held_out_genes=held_out, seed=0)
+        res = NovoSpaRcAdapter().run(inp)
+
+        assert res.status == "ok", res.status
+        assert res.imputed_h5ad is not None
+        assert "imputed" in res.imputed_h5ad.layers
+
+        var_names = list(adata.var_names)
+        idx = [var_names.index(g) for g in held_out]
+        assert np.all(seen["dataset"][:, idx] == 0.0), \
+            "AUDIT FAILURE: NovoSpaRc saw non-zero values at held-out positions"
+    finally:
+        _clear_modules("novosparc")
