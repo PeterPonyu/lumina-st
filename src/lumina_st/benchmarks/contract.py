@@ -202,6 +202,11 @@ class Provenance:
     platform: str = field(default_factory=platform.platform)
     device: str = "cpu"
     dependency_notes: dict[str, str] = field(default_factory=dict)
+    # Reference-reported provenance (#310): True when this row's numbers are
+    # cited from a published paper rather than produced by a local re-run.
+    # Default False preserves full backward compatibility with existing rows.
+    reference_reported: bool = False
+    reference_source: Optional[str] = None
 
     @classmethod
     def capture(cls, method: str, seed: int, device: str = "cpu", **extra: str) -> "Provenance":
@@ -244,6 +249,11 @@ class AdapterResult:
     status: str = "ok"  # "ok" | "unavailable:<reason>" | "error:<reason>"
     runtime_s: float = 0.0
     peak_memory_mb: float = 0.0
+    # Reference-reported provenance (#310): True when this row's numbers are
+    # cited from a published paper rather than produced by a local re-run.
+    # Default False preserves full backward compatibility with existing rows.
+    reference_reported: bool = False
+    reference_source: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

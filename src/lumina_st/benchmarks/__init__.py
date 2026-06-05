@@ -32,6 +32,14 @@ from .cross_validation import (
     stateless_factory,
     summarize_cv,
 )
+from .foundation_provenance import (
+    FOUNDATION_BACKENDS,
+    FoundationRerunError,
+    assert_not_claimed_rerun,
+    is_reference_reported,
+    mark_reference_reported,
+    require_reference_reported,
+)
 
 __all__ = [
     "AdapterInput",
@@ -57,4 +65,10 @@ __all__ = [
     "bootstrap_ci",
     "stateless_factory",
     "aggregate_cv_results",
+    "FOUNDATION_BACKENDS",
+    "FoundationRerunError",
+    "mark_reference_reported",
+    "is_reference_reported",
+    "require_reference_reported",
+    "assert_not_claimed_rerun",
 ]
