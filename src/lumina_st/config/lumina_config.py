@@ -88,6 +88,15 @@ class LuminaSTConfig(BaseModel):
     train_eps: float = 0.0
     sample_eps: float = 0.0
 
+    # Time-sampling distribution for the flow-matching training objective
+    # (issue #136). "uniform" (default) preserves the historical behaviour:
+    # t ~ U(train_eps, 1). "logit_normal" draws t = sigmoid(mean + std * z),
+    # z ~ N(0, 1), concentrating training time near sigmoid(mean) (SD3-style
+    # logit-normal weighting). "cosmap" applies the SD3 cosine-map schedule.
+    time_sampling: Literal["uniform", "logit_normal", "cosmap"] = "uniform"
+    logit_normal_mean: float = 0.0
+    logit_normal_std: float = 1.0
+
     batch_size: int = 128
     num_workers: int = 4
     max_epochs: int = 100
