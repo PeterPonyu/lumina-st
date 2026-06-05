@@ -8,6 +8,7 @@ environment, checkpoint/eval intent, and sweep parameters.
 
 from __future__ import annotations
 
+from .run import ExperimentRun, run_experiment
 from .run_manifest import RunManifest
 
-__all__ = ["RunManifest"]
+__all__ = ["ExperimentRun", "RunManifest", "run_experiment"]
