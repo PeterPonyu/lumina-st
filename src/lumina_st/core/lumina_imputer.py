@@ -240,6 +240,8 @@ class LuminaImputer:
         sparsity_style: str = "gene",
         held_out_genes: Optional[list] = None,
         seed: Optional[int] = None,
+        run_dir: Optional[str | Path] = None,
+        run_manifest_timestamp: Optional[str] = None,
     ) -> ad.AnnData:
         """
         Full guided enhancement / imputation pipeline.
@@ -266,6 +268,14 @@ class LuminaImputer:
                 these columns against the original observations.
             seed: Optional inference seed. Defaults to ``config.seed`` so
                 repeated enhancement calls are reproducible.
+            run_dir: Optional directory. When provided, a ``run_manifest.json``
+                (see ``lumina_st.experiment.RunManifest``) capturing the seed,
+                config snapshot, environment, and git provenance is written
+                there. ``None`` (the default) preserves the historical
+                behaviour and emits nothing.
+            run_manifest_timestamp: Optional injected ISO-8601 timestamp for
+                the emitted manifest (deterministic for tests). Ignored unless
+                ``run_dir`` is set.
 
         Returns:
             A copy of the input AnnData with ``layers['imputed']`` (or
@@ -462,7 +472,66 @@ class LuminaImputer:
             # Latent space only
             adata.layers["imputed_latent"] = x_imputed.detach().cpu().numpy()
 
+        # 7. Optional run-manifest emission (#181). Best-effort: a manifest
+        # write must never break or change the enhancement result, so any
+        # failure here is swallowed after a warning.
+        if run_dir is not None:
+            self._emit_run_manifest(
+                run_dir=run_dir,
+                run_kind="enhance",
+                seed=cfg.seed if seed is None else seed,
+                n_obs=int(adata.n_obs),
+                n_vars=int(adata.n_vars),
+                timestamp=run_manifest_timestamp,
+            )
+
         return adata
+
+    def _emit_run_manifest(
+        self,
+        *,
+        run_dir: str | Path,
+        run_kind: str,
+        seed: Optional[int],
+        n_obs: Optional[int] = None,
+        n_vars: Optional[int] = None,
+        checkpoint_path: Optional[str | Path] = None,
+        resume_from: Optional[str | Path] = None,
+        timestamp: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Write a ``run_manifest.json`` into ``run_dir`` (best-effort).
+
+        Shared by ``enhance`` and ``fit``. Captures the seed, config snapshot,
+        environment, git provenance, sweep/logging/eval intent, and a
+        best-effort dataset id. Never raises: a manifest is provenance, not a
+        result, so a failed write only warns and returns ``None``.
+        """
+        try:
+            from ..experiment.run_manifest import RunManifest
+
+            cfg = self.config
+            run_dir = Path(run_dir)
+            sweep = {"n_obs": n_obs, "n_vars": n_vars, "run_kind": run_kind}
+            eval_cadence: dict[str, Any] = {}
+            if cfg.early_stopping_patience is not None:
+                eval_cadence["early_stopping_patience"] = cfg.early_stopping_patience
+            dataset_id = getattr(cfg, "experiment_name", None)
+
+            manifest = RunManifest.create(
+                run_id=f"{run_kind}-{getattr(cfg, 'experiment_name', 'lumina')}",
+                config=cfg,
+                seed=seed,
+                timestamp=timestamp,
+                sweep_params={k: v for k, v in sweep.items() if v is not None},
+                checkpoint_path=checkpoint_path,
+                resume_from=resume_from,
+                eval_cadence=eval_cadence,
+                dataset_id=dataset_id,
+            )
+            return manifest.to_json(run_dir / "run_manifest.json")
+        except Exception as exc:  # pragma: no cover - defensive, never fatal
+            print(f"Warning: failed to emit run_manifest.json: {exc}")
+            return None
 
     def fit(
         self,
@@ -471,6 +540,9 @@ class LuminaImputer:
         reference_adata: Optional[ad.AnnData] = None,
         train_loader: Optional[DataLoader] = None,
         val_loader: Optional[DataLoader] = None,
+        run_dir: Optional[str | Path] = None,
+        run_manifest_timestamp: Optional[str] = None,
+        resume_from: Optional[str | Path] = None,
         **trainer_kwargs,
     ) -> pl.Trainer:
         """Train the flow model on a reference atlas.
@@ -486,8 +558,29 @@ class LuminaImputer:
         halts training when ``val_loss`` stops improving. The
         ``LuminaFlowModule.validation_step`` logs ``val_loss`` so these callbacks
         have a metric to monitor.
+
+        When ``run_dir`` is provided (or, by default, the configured
+        ``output_dir``), a ``run_manifest.json`` (#181) is written *before*
+        training starts so the run is self-describing even if it later crashes.
+        Pass ``run_dir=None`` only behaviour is preserved; emission never raises.
+        ``resume_from`` is recorded in the manifest's resume field.
         """
         pl.seed_everything(self.config.seed, workers=True)
+
+        # Emit the run manifest up front (#181) so a crashed training run is
+        # still self-describing. Defaults to the configured output_dir; callers
+        # can redirect or (explicitly) keep the historical no-op by passing a
+        # different run_dir. Emission is best-effort and never fatal.
+        manifest_dir = run_dir if run_dir is not None else self.config.output_dir
+        self._emit_run_manifest(
+            run_dir=manifest_dir,
+            run_kind="fit",
+            seed=self.config.seed,
+            checkpoint_path=Path(self.config.output_dir) / "checkpoints",
+            resume_from=resume_from,
+            timestamp=run_manifest_timestamp,
+        )
+
         if train_loader is None:
             if reference_adata is None:
                 raise ValueError("Provide reference_adata or train_loader to train LuminaST")
