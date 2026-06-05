@@ -20,6 +20,7 @@ import numpy as np
 
 __all__ = [
     "ssim",
+    "ssim_2d_windowed",
     "jensen_shannon_divergence",
     "cluster_concordance",
 ]
@@ -135,6 +136,100 @@ def ssim(truth: np.ndarray, recon: np.ndarray,
     if not scores:
         return float("nan")
     return float(np.mean(scores))
+
+
+def _rasterize_to_grid(values: np.ndarray, xy: np.ndarray,
+                       grid: int) -> np.ndarray:
+    """Rasterize a per-point signal onto a ``grid`` × ``grid`` 2-D image.
+
+    Each point's two leading spatial coordinates are independently binned into
+    ``grid`` equal-width bins over their observed range; every pixel holds the
+    mean of the points that fell in it. Empty pixels (no point) are filled with
+    the global mean of the observed values so the image stays a well-defined
+    real field for the windowed SSIM (an empty cell carries no signal, so the
+    neutral DC level is the least-biasing fill). Returns a ``(grid, grid)``
+    float image.
+    """
+    img = np.zeros((grid, grid), dtype=np.float64)
+    counts = np.zeros((grid, grid), dtype=np.float64)
+    bins = np.empty((xy.shape[0], 2), dtype=np.int64)
+    for d in range(2):
+        col = xy[:, d]
+        lo = float(col.min())
+        hi = float(col.max())
+        if hi <= lo:
+            bins[:, d] = 0
+        else:
+            bins[:, d] = np.clip(
+                ((col - lo) / (hi - lo) * grid).astype(np.int64), 0, grid - 1)
+    np.add.at(img, (bins[:, 0], bins[:, 1]), values)
+    np.add.at(counts, (bins[:, 0], bins[:, 1]), 1.0)
+    occupied = counts > 0
+    img[occupied] /= counts[occupied]
+    if not occupied.all():
+        fill = float(values.mean()) if values.size else 0.0
+        img[~occupied] = fill
+    return img
+
+
+def ssim_2d_windowed(truth: np.ndarray, recon: np.ndarray,
+                     spatial: np.ndarray, data_range: float | None = None,
+                     grid: int = 32, win_size: int = 7) -> float:
+    """True 2-D windowed SSIM over the spatial layout (scikit-image backend).
+
+    Unlike the 1-D :func:`ssim` surrogate (a single global luminance/contrast/
+    structure score on flattened vectors), this rasterizes the per-point signal
+    onto a ``grid`` × ``grid`` 2-D image using the ``spatial`` coordinates, then
+    computes the standard image-style windowed SSIM with a ``win_size`` ×
+    ``win_size`` sliding window via
+    :func:`skimage.metrics.structural_similarity`. This is the reference
+    (image) SSIM definition and is sensitive to local spatial texture, which
+    the global surrogate ignores entirely.
+
+    Args:
+        truth: ground-truth per-point signal of length N (flattened internally).
+        recon: reconstructed per-point signal; must match ``truth.shape``.
+        spatial: ``(N, >=2)`` spatial coordinates (e.g. ``obsm['spatial']``).
+        data_range: dynamic range for the C1/C2 stabilizers; when None it is
+            derived from the rasterized truth image
+            (``img.max() - img.min()``, or 1.0 if degenerate).
+        grid: number of pixels per axis of the rasterized image.
+        win_size: odd sliding-window edge length passed to scikit-image
+            (clamped down to the largest odd value ``<= grid`` when needed).
+
+    Returns:
+        Scalar mean SSIM in [-1, 1] (1.0 = identical). NaN if the inputs are
+        empty.
+    """
+    from skimage.metrics import structural_similarity
+
+    a = np.asarray(truth, dtype=np.float64).reshape(-1)
+    b = np.asarray(recon, dtype=np.float64).reshape(-1)
+    if a.shape != b.shape:
+        raise ValueError(f"shape mismatch: {a.shape} vs {b.shape}")
+    if a.size == 0:
+        return float("nan")
+    coords = np.asarray(spatial, dtype=np.float64)
+    if coords.ndim != 2 or coords.shape[1] < 2 or coords.shape[0] != a.size:
+        raise ValueError(
+            f"spatial must be (N, >=2) matching the signal length {a.size}; "
+            f"got {coords.shape}")
+    g = int(grid)
+    xy = coords[:, :2]
+    img_a = _rasterize_to_grid(a, xy, g)
+    img_b = _rasterize_to_grid(b, xy, g)
+    # Window must be odd and not exceed the smaller image side.
+    w = int(win_size)
+    if w % 2 == 0:
+        w += 1
+    max_w = g if g % 2 == 1 else g - 1
+    w = max(3, min(w, max_w)) if max_w >= 3 else max_w
+    dr = float(data_range) if data_range is not None else float(
+        img_a.max() - img_a.min())
+    if dr <= 0.0:
+        dr = 1.0
+    score = structural_similarity(img_a, img_b, win_size=w, data_range=dr)
+    return float(score)
 
 
 def jensen_shannon_divergence(p: np.ndarray, q: np.ndarray,

@@ -38,6 +38,7 @@ dependencies = [
   "pandas>=2.2",
   "anndata>=0.10",
   "scanpy>=1.10",
+  "scikit-image>=0.22",
   "pydantic>=2.8",
   "tqdm",
   "einops",

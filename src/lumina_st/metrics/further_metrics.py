@@ -25,7 +25,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from .imputation_metrics import jensen_shannon_divergence, ssim
+from .imputation_metrics import jensen_shannon_divergence, ssim, ssim_2d_windowed
 
 
 __all__ = [
@@ -137,21 +137,34 @@ def _per_gene_scores(observed: np.ndarray, recovered: np.ndarray,
                      coords: np.ndarray | None = None) -> dict[str, float]:
     """PCC / Spearman / RMSE / SSIM / JSD for ONE gene column.
 
-    When ``coords`` (the per-spot ``obsm['spatial']`` array) is supplied, SSIM is
-    the 2-D spatially-windowed structural-similarity index (reference-comparable);
-    otherwise it falls back to the 1-D global surrogate.
+    SSIM provenance:
+
+    * ``ssim_2d_windowed`` (**primary**) — the true 2-D windowed SSIM over the
+      spatial layout (scikit-image backend). Emitted only when ``coords`` (the
+      per-spot ``obsm['spatial']`` array) is supplied; NaN otherwise.
+    * ``ssim_reference_reported`` — the historical 1-D global surrogate, kept
+      available but **demoted** (not the claimed SSIM). When ``coords`` are
+      supplied it carries the old 2-D-windowed-on-points value; without coords
+      it is the flat 1-D surrogate.
     """
     o = np.asarray(observed, dtype=np.float64).reshape(-1)
     r = np.asarray(recovered, dtype=np.float64).reshape(-1)
     o_pos = np.clip(o, 0.0, None)
     r_pos = np.clip(r, 0.0, None)
+    # SSIM/JS on max-scaled non-negative profiles (spatial-baseline convention).
+    os_, rs_ = _scale_max(o), _scale_max(r)
     return {
         "pcc": _pearson(o, r),
         "spearman": spearman_rank(o, r),
         "rmse": _rmse(o, r),
-        # SSIM/JS on max-scaled non-negative profiles (spatial-baseline convention).
-        # Spatially-windowed when coords are available (matches reference SSIM).
-        "ssim": ssim(_scale_max(o), _scale_max(r), spatial=coords),
+        # PRIMARY: true 2-D windowed SSIM over the spatial grid (skimage).
+        "ssim_2d_windowed": (
+            ssim_2d_windowed(os_, rs_, spatial=coords)
+            if coords is not None else float("nan")
+        ),
+        # DEMOTED surrogate (reference_reported): historical windowed-on-points /
+        # 1-D global value — kept for provenance, NOT the claimed SSIM.
+        "ssim_reference_reported": ssim(os_, rs_, spatial=coords),
         "jsd": jensen_shannon_divergence(o_pos, r_pos, base=2.0),
     }
 
@@ -169,8 +182,10 @@ def pergene_recovery_stats(
 
     Scores the already-computed ``recovered`` layer against the real ``observed``
     expression for every impute_mask-observed gene (a single pass; no re-imputation
-    is performed). Per-gene PCC/Spearman/RMSE/SSIM/JSD are averaged over the
-    top-K HVG (ranked by ``gene_var`` variance) for each K in ``hvg_k``.
+    is performed). Per-gene PCC/Spearman/RMSE/SSIM(2-D windowed)/JSD are averaged
+    over the top-K HVG (ranked by ``gene_var`` variance) for each K in ``hvg_k``.
+    The claimed SSIM is ``ssim_2d_windowed`` (true 2-D windowed, skimage); the
+    1-D surrogate is retained as ``ssim_reference_reported`` (demoted).
 
     Spread (CI) is estimated from gene-partition variance: genes are randomly
     partitioned into ``n_partitions`` groups and the spread of per-partition means
@@ -192,9 +207,10 @@ def pergene_recovery_stats(
         hvg_k: top-K HVG cut-offs to average over.
         seed: RNG seed for the partition assignment.
         coords: optional (n_cells, >=2) ``obsm['spatial']`` coordinates. When
-            supplied, per-gene SSIM is the 2-D spatially-windowed index
-            (reference-comparable, ``ssim_mode='spatial'``); otherwise the 1-D
-            global surrogate is used (``ssim_mode='surrogate'``).
+            supplied, the primary ``ssim_2d_windowed`` metric is the true 2-D
+            windowed SSIM over the spatial grid (skimage, ``ssim_mode='spatial'``);
+            without coords it is NaN and only the demoted 1-D surrogate
+            (``ssim_reference_reported``) is meaningful (``ssim_mode='surrogate'``).
 
     Returns:
         Nested dict with keys ``schema_version``, ``ssim_mode``, ``n_partitions``,
@@ -209,7 +225,8 @@ def pergene_recovery_stats(
 
     coords_arr = np.asarray(coords, dtype=np.float64) if coords is not None else None
 
-    metric_names = ("pcc", "spearman", "rmse", "ssim", "jsd")
+    metric_names = ("pcc", "spearman", "rmse",
+                    "ssim_2d_windowed", "ssim_reference_reported", "jsd")
     per_gene: dict[str, np.ndarray] = {m: np.full(n_genes, np.nan) for m in metric_names}
     for g in range(n_genes):
         sc = _per_gene_scores(observed[:, g], recovered[:, g], coords=coords_arr)
@@ -227,6 +244,8 @@ def pergene_recovery_stats(
 
     out: dict[str, Any] = {
         "schema_version": "1",
+        # "spatial" preserved for backward-compat with the metrics-flattening
+        # consumer; it now denotes the true 2-D windowed SSIM (skimage) primary.
         "ssim_mode": "spatial" if coords_arr is not None else "surrogate",
         "n_partitions": int(n_partitions),
         "n_genes": int(n_genes),
