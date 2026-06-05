@@ -34,9 +34,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 
-from .path import InterpolationPath, get_path
-from .integrators import ode
-from .utils import mean_flat, validate_guidance_scale
+from .path import EPS_ALPHA, InterpolationPath, get_path
+from .integrators import ode, sde
+from .utils import expand_time_like_data, mean_flat, validate_guidance_scale
 
 
 class PredictionTarget(str, enum.Enum):
@@ -278,9 +278,159 @@ class FlowSampler:
         return integrator(x)
 
     # SDE sampling (for diversity or likelihood evaluation)
-    def sample_sde(self, **kwargs) -> torch.Tensor:
-        # Similar pattern – the concrete SDE logic lives in integrators.sde
-        raise NotImplementedError("SDE sampling will be added in Phase 1.1")
+    def sample_sde(
+        self,
+        model: Optional[nn.Module] = None,
+        shape: Optional[Tuple[int, ...]] = None,
+        *,
+        num_steps: int = 250,
+        sampler_type: str = "Euler",
+        diffusion_form: str = "SBDM",
+        diffusion_norm: float = 1.0,
+        cfg_scale: float = 1.0,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+        uncond_model_kwargs: Optional[Dict[str, Any]] = None,
+        t_forward: Optional[float] = None,
+        x_start: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Integrate a reverse-time SDE whose marginals match the probability-flow ODE.
+
+        This mirrors :meth:`sample_ode` (same two modes, same classifier-free
+        guidance convention) but injects stochasticity. For any non-negative
+        diffusion schedule ``w(t)`` the SDE
+
+            ``dx = [ v(x, t) + 0.5 * w(t) * score(x, t) ] dt + sqrt(w(t)) dW``
+
+        shares the marginal densities of the deterministic flow ``dx = v dt``
+        (the standard velocity <-> score <-> reverse-SDE relationship; Song et
+        al. 2021). The velocity ``v`` is the model's drift; the score is
+        recovered from it via :meth:`InterpolationPath.velocity_to_score`, and
+        ``w(t)`` comes from :meth:`InterpolationPath.diffusion` (selected by
+        ``diffusion_form`` / ``diffusion_norm``).
+
+        Two modes:
+
+        * **Unconditional sampling** (``t_forward is None``): start from pure
+          noise ``x0 ~ N(0, I)`` of the given ``shape`` and integrate over
+          ``[0, 1]``. ``shape`` is required for meaningful sampling.
+
+        * **Guided imputation** (``t_forward`` set): forward-diffuse the observed
+          clean signal ``x_start`` to ``t_forward`` via
+          :meth:`FlowTransport.get_noisy_xt` and integrate over
+          ``[t_forward, 1]``. ``x_start`` is required in this mode (same
+          ``ValueError`` contract as :meth:`sample_ode`).
+
+        Classifier-free guidance, when ``cfg_scale != 1.0``, blends the
+        conditional and unconditional velocities as
+        ``v_uncond + cfg_scale * (v_cond - v_uncond)`` before the score
+        correction is added.
+
+        Raises:
+            ValueError: If guided mode is requested without ``x_start``, if the
+                guidance scale is invalid, or if the configured diffusion form
+                yields a negative coefficient ``w(t)`` (no real ``sqrt``).
+        """
+        model = model or self.model
+        assert model is not None, "No model provided to sampler"
+
+        cfg_scale = validate_guidance_scale(cfg_scale)
+
+        device = next(model.parameters()).device
+
+        if t_forward is not None:
+            # Guided imputation: properly forward-diffuse the observed signal.
+            if x_start is None:
+                raise ValueError(
+                    "sample_sde(t_forward=...) performs forward diffusion of a "
+                    "clean starting signal: pass x_start (the observed data to be "
+                    "partially noised). Leave t_forward=None to sample from pure "
+                    "noise."
+                )
+            x_start = x_start.to(device)
+            t0 = float(t_forward)
+            t_vec = torch.full(
+                (x_start.shape[0],), t0, device=device, dtype=x_start.dtype
+            )
+            x, _ = self.transport.get_noisy_xt(x_start, t_vec)
+        else:
+            t0 = 0.0
+            if shape is None:
+                dummy = torch.zeros(1, device=device)
+                shape = (1, *dummy.shape[1:])  # placeholder – user should pass real shape
+            x = torch.randn(shape, device=device)
+
+        cond_kwargs = model_kwargs or {}
+
+        if cfg_scale == 1.0:
+            velocity_fn = self.transport.get_drift(model, **cond_kwargs)
+        else:
+            # Real CFG: blend the conditional and unconditional velocities.
+            if uncond_model_kwargs is None:
+                uncond_model_kwargs = {k: v for k, v in cond_kwargs.items() if k != "y"}
+            cond_drift = self.transport.get_drift(model, **cond_kwargs)
+            uncond_drift = self.transport.get_drift(model, **uncond_model_kwargs)
+
+            def velocity_fn(x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+                v_cond = cond_drift(x_t, t)
+                v_uncond = uncond_drift(x_t, t)
+                return v_uncond + cfg_scale * (v_cond - v_uncond)
+
+        path = self.transport.path
+
+        def diffusion_coeff(x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+            """Path-consistent squared diffusion coefficient ``w(t)``, broadcast to ``x_t``.
+
+            Mirrors :meth:`InterpolationPath.diffusion` but evaluates the path's
+            ``alpha``/``sigma`` directly so the time tensor is expanded exactly
+            once (the path's own ``diffusion`` double-expands ``t`` and is not
+            usable on the ``(x, t)`` 1-D interface the integrator supplies).
+            """
+            te = expand_time_like_data(t, x_t)
+            a, da = path.alpha(te)
+            s, ds = path.sigma(te)
+            if diffusion_form == "constant":
+                w = torch.full_like(a, diffusion_norm)
+            elif diffusion_form == "SBDM":
+                # Natural diffusion of the path's Fokker-Planck form.
+                safe_a = torch.where(a.abs() > EPS_ALPHA, a, torch.ones_like(a))
+                w = diffusion_norm * (da / safe_a * s**2 - s * ds)
+            elif diffusion_form == "sigma":
+                w = diffusion_norm * s
+            elif diffusion_form == "linear":
+                w = diffusion_norm * (1 - te)
+            else:
+                raise ValueError(
+                    f"unsupported diffusion form {diffusion_form!r}; reverse-SDE "
+                    "sampling supports 'constant', 'SBDM', 'sigma', 'linear'."
+                )
+            return torch.broadcast_to(w, x_t.shape)
+
+        def diffusion(x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+            w = diffusion_coeff(x_t, t)
+            if (w < 0).any():
+                raise ValueError(
+                    f"diffusion form {diffusion_form!r} produced a negative "
+                    "coefficient w(t); a reverse SDE needs w(t) >= 0 for a real "
+                    "sqrt. Choose a non-negative diffusion form (e.g. 'constant', "
+                    "'sigma', 'SBDM' on this path) or adjust diffusion_norm."
+                )
+            return torch.sqrt(w)
+
+        def drift(x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+            v = velocity_fn(x_t, t)
+            score = path.velocity_to_score(v, x_t, t)
+            w = diffusion_coeff(x_t, t)
+            return v + 0.5 * w * score
+
+        integrator = sde(
+            drift,
+            diffusion,
+            t0=t0,
+            t1=1.0,
+            num_steps=num_steps,
+            sampler_type=sampler_type,
+        )
+        return integrator(x)
 
 
 # ----------------------------------------------------------------------
