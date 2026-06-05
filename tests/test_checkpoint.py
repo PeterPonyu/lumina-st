@@ -158,3 +158,170 @@ def test_legacy_transformer_only_save_fails_loudly() -> None:
 
     with pytest.raises(RuntimeError):
         _strict_load_state_dict(module, bad_state)
+
+
+# ---------------------------------------------------------------------------
+# #130 — fit() checkpoint save / resume contract
+# ---------------------------------------------------------------------------
+
+
+def _tiny_fit_config(tmp_path, *, max_epochs: int = 1, checkpoint_dir=None) -> LuminaSTConfig:
+    """A minimal CPU-friendly config whose latent_dim == reference n_vars so the
+    VAE-free flow module trains directly on ``.X`` (training_step sets z = x)."""
+
+    return LuminaSTConfig(
+        latent_dim=8,
+        hidden_size=16,
+        depth=2,
+        num_heads=2,
+        mlp_ratio=2.0,
+        cancer_types=["A", "B"],
+        vae_batch_key="cancer_type",
+        batch_size=8,
+        num_workers=0,
+        max_epochs=max_epochs,
+        output_dir=tmp_path / "run",
+        checkpoint_dir=checkpoint_dir,
+    )
+
+
+def _tiny_reference_adata(n_obs: int = 16, n_vars: int = 8):
+    """Synthetic reference atlas: n_vars must equal config.latent_dim (no VAE)."""
+
+    import numpy as np
+    from anndata import AnnData
+
+    rng = np.random.default_rng(0)
+    X = rng.poisson(1.0, size=(n_obs, n_vars)).astype("float32")
+    obs = {"cancer_type": (["A", "B"] * (n_obs // 2 + 1))[:n_obs]}
+    return AnnData(X=X, obs=obs)
+
+
+def _cpu_trainer_kwargs() -> dict:
+    return {"accelerator": "cpu", "devices": 1, "logger": False, "enable_progress_bar": False}
+
+
+def _resolved_ckpt_dir(cfg: LuminaSTConfig):
+    from pathlib import Path
+
+    return (
+        Path(cfg.checkpoint_dir)
+        if cfg.checkpoint_dir is not None
+        else Path(cfg.output_dir) / "checkpoints"
+    )
+
+
+def test_fit_train_only_writes_resumable_checkpoint(tmp_path) -> None:
+    """A train-only run (no val_loader) must still write a resumable ``last.ckpt``
+    in the resolved checkpoint dir (#130). Pre-fix, ModelCheckpoint was only
+    registered when val_loader was given, so train-only runs saved nothing."""
+
+    from lumina_st.core.lumina_imputer import LuminaImputer
+
+    cfg = _tiny_fit_config(tmp_path, max_epochs=1)
+    imputer = LuminaImputer.from_config(cfg)
+
+    imputer.fit(
+        reference_adata=_tiny_reference_adata(),
+        run_dir=None,
+        **_cpu_trainer_kwargs(),
+    )
+
+    ckpt_dir = _resolved_ckpt_dir(cfg)
+    last = ckpt_dir / "last.ckpt"
+    assert last.exists(), f"expected resumable checkpoint at {last}; dir contents: " + (
+        str(list(ckpt_dir.iterdir())) if ckpt_dir.exists() else "<missing>"
+    )
+
+
+def test_fit_respects_explicit_checkpoint_dir(tmp_path) -> None:
+    """``config.checkpoint_dir`` overrides the default output_dir/checkpoints (#130)."""
+
+    from lumina_st.core.lumina_imputer import LuminaImputer
+
+    explicit = tmp_path / "custom_ckpts"
+    cfg = _tiny_fit_config(tmp_path, max_epochs=1, checkpoint_dir=explicit)
+    imputer = LuminaImputer.from_config(cfg)
+
+    imputer.fit(
+        reference_adata=_tiny_reference_adata(),
+        run_dir=None,
+        **_cpu_trainer_kwargs(),
+    )
+
+    assert (explicit / "last.ckpt").exists()
+    # The default location must NOT be used when an explicit dir is set.
+    assert not (cfg.output_dir / "checkpoints" / "last.ckpt").exists()
+
+
+def test_fit_resume_continues_training(tmp_path) -> None:
+    """Resuming from a checkpoint must continue training rather than restart:
+    ``trainer.global_step`` / ``current_epoch`` must advance beyond the resume
+    point (#130). Pre-fix, resume_from was only recorded in the manifest and
+    never passed to trainer.fit(ckpt_path=...), so training restarted at 0."""
+
+    from lumina_st.core.lumina_imputer import LuminaImputer
+
+    cfg = _tiny_fit_config(tmp_path, max_epochs=1)
+    imputer = LuminaImputer.from_config(cfg)
+    trainer1 = imputer.fit(
+        reference_adata=_tiny_reference_adata(),
+        run_dir=None,
+        **_cpu_trainer_kwargs(),
+    )
+    step_after_first = trainer1.global_step
+    epoch_after_first = trainer1.current_epoch
+    assert step_after_first > 0
+
+    ckpt = _resolved_ckpt_dir(cfg) / "last.ckpt"
+    assert ckpt.exists()
+
+    # Fresh imputer + larger budget, resume from the saved checkpoint.
+    cfg2 = _tiny_fit_config(tmp_path, max_epochs=3)
+    imputer2 = LuminaImputer.from_config(cfg2)
+    trainer2 = imputer2.fit(
+        reference_adata=_tiny_reference_adata(),
+        run_dir=None,
+        resume_from=ckpt,
+        **_cpu_trainer_kwargs(),
+    )
+
+    # Resume restored epoch/global_step state, then trained further: the second
+    # run must end strictly past where the first stopped (no restart from 0).
+    assert trainer2.current_epoch > epoch_after_first, (
+        f"resume restarted: current_epoch {trainer2.current_epoch} "
+        f"did not advance past {epoch_after_first}"
+    )
+    assert trainer2.global_step > step_after_first, (
+        f"resume restarted: global_step {trainer2.global_step} "
+        f"did not advance past {step_after_first}"
+    )
+
+
+def test_fit_checkpoint_loads_for_inference(tmp_path) -> None:
+    """A fit-produced checkpoint round-trips back into a flow module via the
+    strict loader without manual key surgery (#130 inference path)."""
+
+    from lumina_st.core.lumina_imputer import LuminaImputer
+
+    cfg = _tiny_fit_config(tmp_path, max_epochs=1)
+    imputer = LuminaImputer.from_config(cfg)
+    imputer.fit(
+        reference_adata=_tiny_reference_adata(),
+        run_dir=None,
+        **_cpu_trainer_kwargs(),
+    )
+
+    ckpt = _resolved_ckpt_dir(cfg) / "last.ckpt"
+    assert ckpt.exists()
+
+    # Lightning's last.ckpt nests weights under "state_dict" with the SAME
+    # module-relative keys (transformer.* / ema_model.*) the strict loader
+    # expects — no manual remapping required.
+    saved = torch.load(ckpt, map_location="cpu", weights_only=True)
+    state = saved["state_dict"]
+    assert any(k.startswith("ema_model.") for k in state)
+    assert any(k.startswith("transformer.") for k in state)
+
+    fresh = _build_minimal_module()
+    _strict_load_state_dict(fresh, state)

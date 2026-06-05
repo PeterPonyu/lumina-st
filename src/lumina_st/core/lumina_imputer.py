@@ -572,11 +572,18 @@ class LuminaImputer:
         # can redirect or (explicitly) keep the historical no-op by passing a
         # different run_dir. Emission is best-effort and never fatal.
         manifest_dir = run_dir if run_dir is not None else self.config.output_dir
+        # Resolve the resumable-checkpoint directory once (#130): explicit
+        # config override wins, otherwise the historical output_dir/checkpoints.
+        ckpt_dir = (
+            Path(self.config.checkpoint_dir)
+            if self.config.checkpoint_dir is not None
+            else Path(self.config.output_dir) / "checkpoints"
+        )
         self._emit_run_manifest(
             run_dir=manifest_dir,
             run_kind="fit",
             seed=self.config.seed,
-            checkpoint_path=Path(self.config.output_dir) / "checkpoints",
+            checkpoint_path=ckpt_dir,
             resume_from=resume_from,
             timestamp=run_manifest_timestamp,
         )
@@ -605,11 +612,12 @@ class LuminaImputer:
             )
 
         if trainer is None:
+            from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
             callbacks: list[pl.Callback] = []
             if val_loader is not None:
-                from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-
-                ckpt_dir = Path(self.config.output_dir) / "checkpoints"
+                # Validation-driven model selection (#146): pick the best epoch
+                # by val_loss and always keep a resumable ``last.ckpt`` (#130).
                 callbacks.append(
                     ModelCheckpoint(
                         monitor="val_loss",
@@ -628,6 +636,19 @@ class LuminaImputer:
                             patience=self.config.early_stopping_patience,
                         )
                     )
+            else:
+                # Train-only runs (#130): no val_loss to monitor, but we still
+                # write a resumable ``last.ckpt`` so the run can be resumed.
+                callbacks.append(
+                    ModelCheckpoint(
+                        monitor="train_loss",
+                        mode="min",
+                        save_top_k=1,
+                        save_last=True,
+                        dirpath=str(ckpt_dir),
+                        filename="best-{epoch:02d}-{train_loss:.4f}",
+                    )
+                )
 
             trainer = pl.Trainer(
                 max_epochs=self.config.max_epochs,
@@ -637,12 +658,23 @@ class LuminaImputer:
                 **trainer_kwargs,
             )
 
+        # Resume actually resumes (#130): forward the checkpoint path to
+        # Lightning so optimizer/scheduler/epoch state are restored, rather
+        # than only recording resume_from in the manifest. Only attach
+        # ``ckpt_path`` when resuming so the no-resume call signature (and any
+        # injected/mock trainer that expects it) is unchanged.
+        resume_kwargs = {"ckpt_path": str(resume_from)} if resume_from is not None else {}
         if val_loader is not None:
             trainer.fit(
                 self.module,
                 train_dataloaders=train_loader,
                 val_dataloaders=val_loader,
+                **resume_kwargs,
             )
         else:
-            trainer.fit(self.module, train_dataloaders=train_loader)
+            trainer.fit(
+                self.module,
+                train_dataloaders=train_loader,
+                **resume_kwargs,
+            )
         return trainer
