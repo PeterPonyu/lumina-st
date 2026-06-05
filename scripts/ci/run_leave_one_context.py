@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from pathlib import Path
 
 import anndata as ad
@@ -95,6 +96,26 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(all_aggregated, indent=2, default=str))
     print(f"\n[loo-cv] Wrote {out_path}")
+
+    # Emit run_manifest.json beside the results — best-effort, never fatal.
+    try:
+        from lumina_st.experiment.run_manifest import RunManifest
+
+        RunManifest.create(
+            run_id=out_path.stem,
+            seed=args.seed,
+            sweep_params={
+                "contexts": args.contexts,
+                "n_cells": args.n_cells,
+                "n_boot": args.n_boot,
+                "panel": panel.name,
+            },
+            dataset_id="synthetic-loo-cv",
+        ).to_json(out_path.parent / "run_manifest.json")
+        print(f"[loo-cv] Wrote {out_path.parent / 'run_manifest.json'}")
+    except Exception as exc:  # noqa: BLE001
+        warnings.warn(f"run_manifest.json could not be written: {exc}", stacklevel=1)
+
     return 0
 
 

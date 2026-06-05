@@ -64,6 +64,32 @@ An immutable audit clone of the prior-art repository may be placed at `baselines
 
 **Prior-art citation**: the relevant prior-art reference is tracked privately and will be cited in the manuscript bibliography. It is intentionally kept out of the public package documentation per the project's brand-independence policy.
 
+## Reproducible runs / experiment harness
+
+Every benchmark and sweep run emits a `run_manifest.json` beside its results
+JSON, capturing the seed, sweep parameters, dataset id, environment versions
+(Python / NumPy / PyTorch), and git SHA.  This makes every run self-describing
+and auditable from day one.
+
+**One-command entrypoints:**
+
+```bash
+# Full adapter smoke benchmark — writes results/benchmark/synthetic_smoke.json
+python scripts/ci/run_synthetic_benchmark.py
+
+# Sparsity / detection-rate sweep across five fractions
+python scripts/ci/run_sparsity_sweep.py
+
+# Leave-one-context cross-validation over cancer-type contexts
+python scripts/ci/run_leave_one_context.py
+```
+
+Each script writes its results JSON and a `run_manifest.json` in the same
+output directory.  The manifest is emitted best-effort — any I/O failure is
+warned and never disrupts the results write.  See
+[`docs/EXPERIMENT_HARNESS.md`](./docs/EXPERIMENT_HARNESS.md) for the full
+schema and design notes.
+
 ## Status
 
 - **Phase 0** — Skeletons, audit baselines, git repos, data docs: **complete**

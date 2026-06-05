@@ -106,8 +106,15 @@ def main() -> int:
     aggregated = aggregate_results({("synthetic-coad-smoke", panel.name): results})
 
     out_path = Path(__file__).resolve().parents[2] / args.out
-    write_results_json(aggregated, out_path)
+    write_results_json(
+        aggregated,
+        out_path,
+        seed=args.seed,
+        dataset_id="synthetic-coad-smoke",
+        sweep_params={"n_cells": args.n_cells, "panel": panel.name},
+    )
     print(f"[smoke] Wrote {out_path}")
+    print(f"[smoke] Wrote {out_path.parent / 'run_manifest.json'}")
 
     # Sanity check: at least one adapter must have succeeded.
     ok = [r for r in results if r.status == "ok"]

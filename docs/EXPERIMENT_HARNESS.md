@@ -68,11 +68,32 @@ and never changes results or raises. Manifest creation does no I/O on the model.
   point and points each run at its own `run_dir`; the manifests are the
   per-trial provenance ledger.
 
-## Deferred (out of scope for #181)
+## Benchmark / sweep runners (#131)
 
-- A sweep/grid runner that iterates `sweep_params` and launches trials.
+All three CI sweep runners now emit `run_manifest.json` beside their results
+JSON after every successful write.  The manifest records seed, sweep params,
+dataset id, environment versions, and git SHA — all captured by
+`RunManifest.create(...)`.  Emission is best-effort: any I/O failure is warned
+and never disrupts the results write.
+
+| Script | Default output | Manifest written |
+|--------|---------------|-----------------|
+| `scripts/ci/run_synthetic_benchmark.py` | `results/benchmark/synthetic_smoke.json` | `results/benchmark/run_manifest.json` |
+| `scripts/ci/run_sparsity_sweep.py` | `results/benchmark/sparsity_sweep.json` | `results/benchmark/run_manifest.json` |
+| `scripts/ci/run_leave_one_context.py` | `results/benchmark/leave_one_context.json` | `results/benchmark/run_manifest.json` |
+
+The `write_results_json` function in `lumina_st.benchmarks.runner` also accepts
+`seed`, `sweep_params`, `dataset_id`, `run_id`, and `emit_manifest` keyword
+arguments so callers that drive the runner directly get the same provenance
+tracking.
+
+## Deferred (out of scope for #181 / #131)
+
+- A sweep/grid runner that iterates `sweep_params` and launches trials
+  (sweep orchestration).
 - A scheduler that *consumes* `eval_cadence` (the field is recorded, not yet read
-  by training loops).
+  by training loops); checkpoint-resume automation.
+- Eval-cadence-driven scheduling beyond the existing `early_stopping_patience`.
 - Dataset hashing on the real-data path (`dataset_hash_for` exists; wiring it to
   the actual atlas/ST inputs lands with real data).
 - Per-component seed streams beyond `seeds["global"]`.
