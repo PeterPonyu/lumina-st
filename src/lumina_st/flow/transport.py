@@ -28,6 +28,7 @@ Note:
 from __future__ import annotations
 
 import enum
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -61,6 +62,47 @@ class FlowTransport:
     loss_weight: LossWeighting = LossWeighting.NONE
     train_eps: float = 0.0
     sample_eps: float = 0.0
+    time_sampling: str = "uniform"
+    logit_normal_mean: float = 0.0
+    logit_normal_std: float = 1.0
+
+    # ------------------------------------------------------------------
+    # Time sampling
+    # ------------------------------------------------------------------
+    def _sample_time(self, batch: int, device: torch.device) -> torch.Tensor:
+        """Draw a batch of training times ``t`` per the configured distribution.
+
+        Modes (selected by ``self.time_sampling``):
+
+        * ``"uniform"`` (default): ``t ~ U(train_eps, 1)`` via
+          ``torch.rand(batch) * (1 - train_eps) + train_eps``. This is
+          bit-identical to the historical behaviour and uses a single
+          ``torch.rand`` RNG draw so existing seeded tests are unaffected.
+
+        * ``"logit_normal"``: ``t = sigmoid(mean + std * z)`` with
+          ``z ~ N(0, 1)`` (one ``torch.randn`` draw), concentrating mass near
+          ``sigmoid(mean)`` (SD3-style logit-normal weighting). The result is
+          in ``(0, 1)`` and clamped into ``[train_eps, 1)`` to stay on the
+          path's valid domain.
+
+        * ``"cosmap"``: the SD3 cosine-map schedule. Draw ``u ~ U(0, 1)`` (one
+          ``torch.rand`` draw) and map ``t = 1 - 1 / (tan(pi/2 * u) + 1)``,
+          which lies in ``(0, 1)``; clamped into ``[train_eps, 1)``.
+        """
+        if self.time_sampling == "uniform":
+            return torch.rand(batch, device=device) * (1 - self.train_eps) + self.train_eps
+        if self.time_sampling == "logit_normal":
+            z = torch.randn(batch, device=device)
+            t = torch.sigmoid(self.logit_normal_mean + self.logit_normal_std * z)
+            return t.clamp(min=self.train_eps, max=1.0 - torch.finfo(t.dtype).eps)
+        if self.time_sampling == "cosmap":
+            u = torch.rand(batch, device=device)
+            t = 1 - 1 / (torch.tan(math.pi / 2 * u) + 1)
+            return t.clamp(min=self.train_eps, max=1.0 - torch.finfo(t.dtype).eps)
+        raise ValueError(
+            f"unsupported time_sampling {self.time_sampling!r}; expected one of "
+            "'uniform', 'logit_normal', 'cosmap'."
+        )
 
     # ------------------------------------------------------------------
     # Training losses
@@ -82,7 +124,7 @@ class FlowTransport:
 
         # Sample noise and time
         x0 = torch.randn_like(x1)
-        t = torch.rand(batch, device=device) * (1 - self.train_eps) + self.train_eps
+        t = self._sample_time(batch, device)
 
         # Interpolate
         _, xt, ut = self.path.plan(t, x0, x1)
@@ -442,6 +484,9 @@ def create_flow_transport(
     loss_weight: Optional[str] = None,
     train_eps: Optional[float] = None,
     sample_eps: Optional[float] = None,
+    time_sampling: str = "uniform",
+    logit_normal_mean: float = 0.0,
+    logit_normal_std: float = 1.0,
 ) -> FlowTransport:
     """Create a FlowTransport with sensible defaults for biology-scale data."""
 
@@ -464,4 +509,7 @@ def create_flow_transport(
         loss_weight=lw,
         train_eps=train_eps or 0.0,
         sample_eps=sample_eps or 0.0,
+        time_sampling=time_sampling,
+        logit_normal_mean=logit_normal_mean,
+        logit_normal_std=logit_normal_std,
     )

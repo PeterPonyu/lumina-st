@@ -88,6 +88,9 @@ class LuminaFlowModule(pl.LightningModule):
             loss_weight=config.loss_weight,
             train_eps=config.train_eps,
             sample_eps=config.sample_eps,
+            time_sampling=config.time_sampling,
+            logit_normal_mean=config.logit_normal_mean,
+            logit_normal_std=config.logit_normal_std,
         )
         self.sampler = FlowSampler(self.transport)
 
