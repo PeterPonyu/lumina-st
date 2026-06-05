@@ -107,8 +107,11 @@ def risk_coverage_curve(
     # Trapezoidal area under risk vs coverage. NaN risks (e.g. degenerate
     # Pearson on a tiny prefix) are dropped so AURC stays finite.
     valid = ~np.isnan(risks)
+    # ``np.trapz`` was renamed to ``np.trapezoid`` in NumPy 2.0 and removed under
+    # its old name; fall back to ``trapz`` on NumPy <2 so both CI matrices pass.
+    _trapezoid = getattr(np, "trapezoid", None) or np.trapz
     if valid.sum() >= 2:
-        aurc = float(np.trapz(risks[valid], coverages[valid]))
+        aurc = float(_trapezoid(risks[valid], coverages[valid]))
     elif valid.sum() == 1:
         aurc = float(risks[valid][0])
     else:
