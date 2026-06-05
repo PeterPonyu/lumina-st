@@ -128,6 +128,9 @@ class LuminaSTConfig(BaseModel):
     # Logging & output
     # ------------------------------------------------------------------
     output_dir: Path = Field(default=Path("results"))
+    # Where ModelCheckpoint writes resumable checkpoints (#130). When ``None``
+    # (the default), ``LuminaImputer.fit`` resolves it to ``output_dir/checkpoints``.
+    checkpoint_dir: Optional[Path] = None
     use_wandb: bool = False
     wandb_project: str = "lumina-st"
 
