@@ -39,6 +39,7 @@ from .contract import (
     Provenance,
     compute_imputation_metrics,
 )
+from .risk_coverage import risk_coverage_curve
 
 
 class ConformalCalibrator(BaseAdapter):
@@ -57,6 +58,7 @@ class ConformalCalibrator(BaseAdapter):
         base: BaseAdapter,
         alpha: float = 0.1,
         cal_fraction: float = 0.5,
+        coverage_tol: float = 0.05,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -64,9 +66,12 @@ class ConformalCalibrator(BaseAdapter):
             raise ValueError(f"alpha must be in (0, 1); got {alpha}")
         if not (0.0 < cal_fraction < 1.0):
             raise ValueError(f"cal_fraction must be in (0, 1); got {cal_fraction}")
+        if not (coverage_tol >= 0.0):
+            raise ValueError(f"coverage_tol must be >= 0; got {coverage_tol}")
         self.base = base
         self.alpha = alpha
         self.cal_fraction = cal_fraction
+        self.coverage_tol = coverage_tol
         self.name = f"conformal[{base.name}]"
 
     def _check_available(self) -> tuple[bool, str]:
@@ -174,13 +179,54 @@ class ConformalCalibrator(BaseAdapter):
             lower_test = lower[test_idx][:, held_cols]
             upper_test = upper[test_idx][:, held_cols]
             truth_test_held = truth_test[:, held_cols]
+            width_test_held = width[test_idx][:, held_cols]
             covered = (truth_test_held >= lower_test) & (truth_test_held <= upper_test)
-            metrics["empirical_coverage"] = float(np.mean(covered))
-            metrics["mean_interval_width"] = float(np.mean(width[test_idx][:, held_cols]))
+            empirical_coverage = float(np.mean(covered))
+            nominal_coverage = 1.0 - self.alpha
+            mean_width = float(np.mean(width_test_held))
+            metrics["empirical_coverage"] = empirical_coverage
+            metrics["mean_interval_width"] = mean_width
             metrics["alpha"] = self.alpha
-            metrics["nominal_coverage"] = 1.0 - self.alpha
+            metrics["nominal_coverage"] = nominal_coverage
             metrics["n_calibration_cells"] = n_cal_actual
             metrics["n_test_cells"] = int(test_idx.size)
+
+            # -- #311 calibration gate: flag miscalibration + report sharpness.
+            # Reported flag, not a hard raise: a benchmark row records the
+            # deviation alongside the sharpness so coverage is never reported
+            # without its width trade-off.
+            coverage_deviation = abs(empirical_coverage - nominal_coverage)
+            metrics["coverage_deviation"] = coverage_deviation
+            metrics["coverage_tol"] = self.coverage_tol
+            metrics["coverage_ok"] = bool(coverage_deviation <= self.coverage_tol)
+            # Interval sharpness: mean width plus a normalized width (mean width
+            # over truth dynamic range) so sharpness is comparable across genes
+            # / scales. Smaller ⇒ sharper.
+            truth_range = float(np.ptp(truth_test_held))
+            metrics["mean_interval_width_normalized"] = (
+                mean_width / truth_range if truth_range > 0 else float("nan")
+            )
+
+            # -- #303 selective-prediction risk-coverage summary (best-effort).
+            # Rank held-out predictions by interval width (the conformal
+            # uncertainty score) and report how fast RMSE drops as we keep only
+            # the most-confident predictions. Reframes coverage-vs-nominal (#291)
+            # into risk-vs-coverage.
+            try:
+                rc = risk_coverage_curve(
+                    truth=truth_test_held,
+                    pred=X_hat[test_idx][:, held_cols],
+                    uncertainty=width_test_held,
+                    risk="rmse",
+                )
+                metrics["risk_coverage_aurc"] = rc["aurc"]
+                metrics["risk_coverage_curve"] = {
+                    "coverage": [float(c) for c in rc["coverage"]],
+                    "risk": [float(r) for r in rc["risk"]],
+                    "risk_kind": rc["risk_kind"],
+                }
+            except Exception:  # noqa: BLE001 - summary is best-effort, never fatal
+                pass
 
         return AdapterResult(
             method=self.name,

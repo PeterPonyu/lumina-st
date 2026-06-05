@@ -130,6 +130,78 @@ def test_conformal_result_schema_includes_uncertainty_fields():
     assert m["n_calibration_cells"] + m["n_test_cells"] == adata.n_obs
 
 
+# -- #311 calibration / coverage gate -----------------------------------
+
+
+def test_calibration_gate_flags_well_calibrated_case_ok():
+    """A noisy adapter at nominal coverage should pass the gate and report
+    positive interval sharpness."""
+    adata = _make_adata(n_cells=400, n_genes=20, seed=0)
+    held_out = ["GENE_002", "GENE_007", "GENE_012", "GENE_017"]
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=held_out, seed=42)
+
+    truth_X = np.asarray(adata.X, dtype=np.float32)
+    result = ConformalCalibrator(
+        base=_NoisyAdapter(truth_X, sigma=1.0, seed=1), alpha=0.1, coverage_tol=0.08,
+    ).run(inp)
+
+    m = result.metrics_json
+    assert m["coverage_ok"] is True, (m["empirical_coverage"], m["coverage_deviation"])
+    assert m["coverage_deviation"] == pytest.approx(
+        abs(m["empirical_coverage"] - m["nominal_coverage"])
+    )
+    assert m["coverage_deviation"] <= m["coverage_tol"]
+    # Sharpness reported alongside coverage.
+    assert m["mean_interval_width"] > 0.0
+    assert np.isfinite(m["mean_interval_width_normalized"])
+
+
+def test_calibration_gate_flags_miscalibration():
+    """The identity adapter yields coverage 1.0, far above nominal 0.9 with a
+    tight tolerance: the gate must flag it as NOT ok and report the deviation
+    plus sharpness."""
+    adata = _make_adata(n_cells=80, seed=0)
+    held_out = ["GENE_005", "GENE_010", "GENE_015"]
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=held_out, seed=42)
+
+    truth_X = np.asarray(adata.X, dtype=np.float32)
+    result = ConformalCalibrator(
+        base=_IdentityAdapter(truth_X), alpha=0.1, coverage_tol=0.02,
+    ).run(inp)
+
+    m = result.metrics_json
+    assert m["empirical_coverage"] == pytest.approx(1.0)
+    assert m["coverage_ok"] is False
+    assert m["coverage_deviation"] == pytest.approx(0.1, abs=1e-6)
+    assert m["coverage_deviation"] > m["coverage_tol"]
+    assert "mean_interval_width" in m
+    assert "mean_interval_width_normalized" in m
+
+
+def test_calibration_gate_rejects_negative_tol():
+    with pytest.raises(ValueError):
+        ConformalCalibrator(base=MeanAdapter(), coverage_tol=-0.1)
+
+
+def test_risk_coverage_summary_wired_into_metrics():
+    """The adapter should surface a best-effort risk-coverage AURC + curve."""
+    adata = _make_adata(n_cells=400, n_genes=20, seed=0)
+    held_out = ["GENE_002", "GENE_007", "GENE_012", "GENE_017"]
+    inp = AdapterInput(input_h5ad=adata, held_out_genes=held_out, seed=42)
+
+    truth_X = np.asarray(adata.X, dtype=np.float32)
+    result = ConformalCalibrator(
+        base=_NoisyAdapter(truth_X, sigma=1.0, seed=1), alpha=0.1,
+    ).run(inp)
+
+    m = result.metrics_json
+    assert "risk_coverage_aurc" in m
+    assert np.isfinite(m["risk_coverage_aurc"])
+    curve = m["risk_coverage_curve"]
+    assert len(curve["coverage"]) == len(curve["risk"])
+    assert curve["risk_kind"] == "rmse"
+
+
 # -- Audit boundary -----------------------------------------------------
 
 
