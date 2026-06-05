@@ -118,3 +118,31 @@ def test_gt_layer_missing_raises() -> None:
     evaluator = EnhancementEvaluator(adata, gt_layer="not_there")
     with pytest.raises(KeyError, match="gt_layer"):
         evaluator.run_gene_metrics()
+
+
+def test_summary_clustering_uplift_ungated_without_gt() -> None:
+    """Regression for #308.
+
+    ``summary()`` previously surfaced a self-derived clustering AGREEMENT
+    number (``leiden_enhanced`` vs ``leiden``, both computed FROM latents),
+    which both hid regressions and could be faked positive. With the gate,
+    ``summary()`` runs the GT-anchored uplift path: with no class-A ``gt_key``
+    the uplift metrics are reported as ``None`` (ungated), never a circular
+    agreement score.
+    """
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(loc=5.0, scale=2.0, size=(20, 6)).astype(np.float32)
+    adata = AnnData(X=X)
+    adata.layers["imputed"] = X.copy()
+
+    metrics = EnhancementEvaluator(adata).summary()
+
+    # Gene metrics still computed.
+    assert "mean_pearson" in metrics, metrics
+    # Uplift gated OFF without a class-A GT.
+    assert str(metrics["clustering_uplift_gate"]).startswith("ungated"), metrics
+    for key in ("ari_delta_over_raw", "ari_enhanced_vs_gt", "nmi_delta_over_raw"):
+        assert metrics[key] is None, (key, metrics)
+    # The old self-agreement keys must NOT be surfaced as uplift.
+    assert "ari_enhanced_vs_original" not in metrics, metrics
