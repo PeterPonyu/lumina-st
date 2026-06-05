@@ -141,3 +141,25 @@ def test_held_out_gene_recovery():
     assert observed.shape == (n_cells, cfg.latent_dim), (
         f"latent_observed shape mismatch: {observed.shape}"
     )
+
+
+def test_benchmark_encoder_leakage_guard_blocks_unmaskable_held_out_gene():
+    """#307: the benchmark contract fails closed if a held-out gene cannot be
+    masked out of the layer the encoder/adapter conditions on."""
+    from lumina_st.benchmarks.contract import AdapterInput, EncoderLeakageError
+
+    rng = np.random.default_rng(0)
+    a = AnnData(X=rng.uniform(1.0, 5.0, (12, 8)).astype(np.float32))
+    a.var_names = [f"G{i:02d}" for i in range(8)]
+
+    # Held-out gene not in var_names -> masker cannot reach it -> structural leak.
+    inp = AdapterInput(input_h5ad=a, held_out_genes=["G99"])
+    try:
+        inp.assert_no_encoder_leakage()
+    except EncoderLeakageError:
+        pass
+    else:
+        raise AssertionError("leakage guard must reject an unmaskable held-out gene")
+
+    # A present, maskable held-out gene passes the guard.
+    AdapterInput(input_h5ad=a, held_out_genes=["G03"]).assert_no_encoder_leakage()
