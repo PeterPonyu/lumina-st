@@ -23,6 +23,7 @@ from .sparsity import (
     run_sparsity_sweep,
 )
 from .uncertainty import ConformalCalibrator
+from .risk_coverage import risk_coverage_curve
 from .cross_validation import (
     CVFold,
     aggregate_cv_results,
@@ -49,6 +50,7 @@ __all__ = [
     "run_sparsity_sweep",
     "aggregate_sparsity_results",
     "ConformalCalibrator",
+    "risk_coverage_curve",
     "CVFold",
     "run_cv",
     "summarize_cv",
