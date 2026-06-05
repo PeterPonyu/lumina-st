@@ -111,6 +111,11 @@ class LuminaSTConfig(BaseModel):
     # Sampling / Imputation (inference)
     # ------------------------------------------------------------------
     guidance_scale: float = 3.0
+    # Classifier-free-guidance decay schedule (issue #143). ``None`` keeps the
+    # guidance scale constant across the reverse ODE (current behaviour);
+    # ``"linear"`` / ``"cosine"`` anneal it from ``guidance_scale`` down toward
+    # 1.0 over the integration window. Consumed by ``enhance_latent(cfg_decay=)``.
+    cfg_decay: Optional[Literal["linear", "cosine"]] = None
     # Forward integration start time on the path. Convention (LinearPath): t=1 is
     # data, t=0 is noise; ``t_forward`` is therefore the *data fraction* kept in
     # the noised state z_t = alpha(t)*z + sigma(t)*x0. With t_forward=0.5 the
