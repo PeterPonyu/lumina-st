@@ -64,6 +64,21 @@ def _load_config_overrides(config_path: str | None) -> dict[str, Any]:
 
 def _build_config(args: argparse.Namespace) -> LuminaSTConfig:
     config_kwargs = _load_config_overrides(args.config)
+
+    # LuminaSTConfig uses extra="forbid" (so a misspelled key is caught rather
+    # than silently ignored), but splatting a raw YAML dict straight in surfaces
+    # that as an opaque Pydantic ValidationError. Check up front and raise an
+    # actionable message naming the unknown key(s) and the valid field set so a
+    # config typo is obvious instead of cryptic (#280).
+    known = set(LuminaSTConfig.model_fields)
+    unknown = sorted(set(config_kwargs) - known)
+    if unknown:
+        raise ValueError(
+            f"Unknown config field(s) {unknown} in {args.config!r}. "
+            f"Valid LuminaSTConfig fields are: {sorted(known)}"
+        )
+
+    # CLI flags override file values for the two knobs the CLI exposes.
     cli_kwargs = {"seed": args.seed, "max_epochs": args.max_epochs}
     return LuminaSTConfig(**{**config_kwargs, **cli_kwargs})
 

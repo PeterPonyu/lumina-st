@@ -40,6 +40,41 @@ def test_train_latent_flow_builds_config_from_allowed_cli_fields(tmp_path: Path)
     assert cfg.max_epochs == 2
 
 
+def test_train_latent_flow_rejects_unknown_config_key(tmp_path: Path) -> None:
+    """#280: an unknown/misspelled config key raises an actionable error naming
+    it, not an opaque Pydantic ValidationError from the extra="forbid" splat."""
+    train_latent_flow = _load_script("scripts/e2e/train_latent_flow.py")
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"latent_dim": 12, "typoo_field": 1}))
+
+    with pytest.raises(ValueError, match=r"Unknown config field.*typoo_field"):
+        train_latent_flow._build_config(
+            argparse.Namespace(
+                data="/x.h5ad", config=str(config_path), seed=1, max_epochs=1
+            )
+        )
+
+
+def test_train_latent_flow_example_coad_config_is_valid() -> None:
+    """#280: the documented configs/lumina_coad.yaml exists and every key is a
+    valid LuminaSTConfig field, so the advertised --config path actually runs."""
+    pytest.importorskip("yaml")
+    train_latent_flow = _load_script("scripts/e2e/train_latent_flow.py")
+    cfg = train_latent_flow._build_config(
+        argparse.Namespace(
+            data="/x.h5ad",
+            config="configs/lumina_coad.yaml",
+            seed=7,
+            max_epochs=3,
+        )
+    )
+    assert cfg.experiment_name == "lumina_coad"
+    assert cfg.latent_encoder_backend == "scvi"
+    # CLI flags still override file values.
+    assert cfg.seed == 7
+    assert cfg.max_epochs == 3
+
+
 def test_baseline_imputation_missing_inputs_exit_nonzero(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
