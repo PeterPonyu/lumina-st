@@ -57,6 +57,10 @@ def test_transfer_labels_one_per_cell():
 
 
 def test_main_writes_caveated_json(tmp_path):
+    # main() runs Leiden via clustering_agreement (flavor="igraph"); skip where
+    # the clustering backend is absent (CI), matching tests/test_clustering.py.
+    pytest.importorskip("leidenalg")
+    pytest.importorskip("igraph")
     mod = _load()
     ref_p = tmp_path / "ref.h5ad"
     enh_p = tmp_path / "enh.h5ad"
