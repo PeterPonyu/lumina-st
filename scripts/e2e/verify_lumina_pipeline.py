@@ -33,8 +33,9 @@ def generate_consistent_synthetic(n_cells=1500, n_genes=96, n_classes=4):
     rng = np.random.default_rng(123)
     cancer_names = [f"T{i}" for i in range(n_classes)]
 
-    # Reference
-    ref_expr = rng.normal(0, 1, (n_cells, n_genes)).astype(np.float32)
+    # Reference — RAW integer counts so the smoke honestly exercises the #314
+    # raw-count guard (ReferenceAtlasDataset rejects float/log-normalized X).
+    ref_expr = rng.poisson(2.0, (n_cells, n_genes)).astype(np.float32)
     ref_cancer = rng.choice(cancer_names, n_cells)
     ref = sc.AnnData(X=ref_expr)
     ref.obs["cancer_type"] = pd.Categorical(ref_cancer)
