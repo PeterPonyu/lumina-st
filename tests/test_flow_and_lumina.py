@@ -8,7 +8,6 @@ Run with:
 import numpy as np
 import anndata as ad
 import pytorch_lightning as pl
-import pytest
 import torch
 
 from lumina_st.flow import create_flow_transport, LinearPath
@@ -103,8 +102,11 @@ def test_vectorized_sparsity_correctness():
 
 def test_lumina_imputer_fit_runs_one_training_batch(tmp_path):
     rng = np.random.default_rng(7)
+    # Raw integer counts — ReferenceAtlasDataset enforces the raw-count input
+    # contract (#314); rng.normal() would produce negative, non-integer values
+    # that (correctly) trip the log1p-normalized guard.
     adata = ad.AnnData(
-        X=rng.normal(size=(8, 8)).astype(np.float32),
+        X=rng.poisson(3.0, size=(8, 8)).astype(np.float32),
         obs={"cancer_type": ["COAD"] * 8},
     )
     cfg = LuminaSTConfig(
