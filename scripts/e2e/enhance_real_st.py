@@ -36,7 +36,7 @@ from lumina_st.latents.scvi_vae import SCVILatentEncoder  # noqa: E402
 from lumina_st.models.lumina_transformer import LuminaTransformer  # noqa: E402
 from lumina_st.modules.lumina_flow_module import LuminaFlowModule  # noqa: E402
 from lumina_st.core.lumina_imputer import LuminaImputer  # noqa: E402
-from lumina_st.data.datasets import ReferenceAtlasDataset  # noqa: E402
+from lumina_st.data.datasets import ReferenceAtlasDataset, align_to_shared_panel  # noqa: E402
 from lumina_st.data.cancer_registry import CancerRegistry  # noqa: E402
 from lumina_st import results_contract  # noqa: E402
 
@@ -293,24 +293,23 @@ def main(args):
         num_sampling_steps=args.num_sampling_steps,
     )
 
-    # Align the target gene panel to the reference panel: the scVI VAE is
-    # trained on the reference's gene space (n_input = ref.n_vars), so the
-    # target must be subset+reordered to the exact reference var_names before
-    # encoding. On real data ref (9906) is a subset of the target (10000)
-    # panel; drop target-only genes and reorder to the reference order.
+    # Align reference + target onto their shared gene panel: the VAE is trained
+    # on the reference's gene space (n_input = ref.n_vars), so the target must be
+    # encoded in that exact space. ``align_to_shared_panel`` is robust to either
+    # direction of containment — the legacy ref⊆target case (a ~9.9k atlas vs a
+    # 10k target) AND the inverted target⊆ref case (a whole-transcriptome ~33k
+    # scRNA atlas vs a ~5k Xenium panel), where the reference is subset *down* to
+    # the panel rather than hard-failing. Genes end up in reference order.
     n_genes_dropped = 0
+    n_ref_genes_dropped = 0
     if list(target.var_names) != list(ref.var_names):
-        shared = [g for g in ref.var_names if g in set(target.var_names)]
-        if len(shared) != ref.n_vars:
-            raise ValueError(
-                f"Reference panel not fully covered by target: "
-                f"{len(shared)}/{ref.n_vars} reference genes present in target."
-            )
-        n_genes_dropped = int(target.n_vars - len(shared))
-        target = target[:, shared].copy()
+        ref, target, align_stats = align_to_shared_panel(ref, target)
+        n_genes_dropped = align_stats["n_target_dropped"]
+        n_ref_genes_dropped = align_stats["n_reference_dropped"]
         print(
-            f"[INFO] Aligned target to reference panel: kept {len(shared)} genes, "
-            f"dropped {n_genes_dropped} target-only genes."
+            f"[INFO] Aligned to shared gene panel: kept {align_stats['n_shared']} "
+            f"genes (dropped {n_ref_genes_dropped} reference-only, "
+            f"{n_genes_dropped} target-only)."
         )
 
     # 1. Train scVI VAE on reference (if not provided)
@@ -451,9 +450,10 @@ def main(args):
         f"requested_cancer={args.cancer!r}; conditioned scVI batch on reference "
         f"{batch_key}={enhance_label!r} (target --cancer label outside scVI batch space)"
     )
-    if n_genes_dropped:
+    if n_genes_dropped or n_ref_genes_dropped:
         notes_parts.append(
-            f"aligned target to reference panel: dropped {n_genes_dropped} target-only genes"
+            f"aligned to shared gene panel: dropped {n_ref_genes_dropped} "
+            f"reference-only + {n_genes_dropped} target-only genes"
         )
 
     card_id = results_contract.dataset_card_id(dataset_paths) if dataset_paths else "synthetic"

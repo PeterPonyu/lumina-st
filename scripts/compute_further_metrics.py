@@ -220,7 +220,9 @@ def main(args: argparse.Namespace) -> None:
 
     write_out = results_contract.write_results(
         project="lumina-st",
-        dataset_card_id=prev_meta.get("dataset_card_id", "lumina_ref_local+processed_data"),
+        dataset_card_id=prev_meta.get(
+            "dataset_card_id", "lumina_ref_coad_gse132465+xenium_5k_cervix"
+        ),
         metrics=merged_metrics,
         outputs={
             "enhanced": "outputs/enhanced.h5ad",

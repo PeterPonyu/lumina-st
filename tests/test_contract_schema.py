@@ -78,7 +78,7 @@ def test_write_results_roundtrip_schema_valid(tmp_path):
     rc = _import_vendored()
     result = rc.write_results(
         project="lumina-st",
-        dataset_card_id="lumina_ref_local+processed_data",
+        dataset_card_id="lumina_ref_coad_gse132465+xenium_5k_cervix",
         metrics={
             "held_out_gene_pearson_mean": 0.42,
             "self_consistency_pearson": 0.99,
@@ -87,9 +87,12 @@ def test_write_results_roundtrip_schema_valid(tmp_path):
         },
         outputs={"enhanced": "outputs/enhanced.h5ad"},
         run_metadata={
-            "dataset_paths": ["data/processed/lumina_ref_local/sc_reference.h5ad"],
-            "n_obs": 20000,
-            "n_vars": 9906,
+            "dataset_paths": [
+                "data/processed/lumina_ref_coad_gse132465/sc_reference.h5ad",
+                "data/processed/xenium_5k_cervix/anndata.h5ad",
+            ],
+            "n_obs": 63689,
+            "n_vars": 5101,
             "seed": 0,
             "runtime_s": 12.5,
             "device": "cuda",
