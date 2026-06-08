@@ -49,7 +49,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
-  "ruff",
+  "ruff>=0.15,<0.16",
   "mypy",
   "pre-commit",
   "lightning>=2.4",
