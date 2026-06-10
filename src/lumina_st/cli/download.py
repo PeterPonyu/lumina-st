@@ -9,20 +9,14 @@ import os
 import urllib.request
 from pathlib import Path
 
-DEFAULT_DOWNLOAD_MAP = {
-    "CESC": {
-        "diffusion": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/CESC/diffusion_50.ckpt",
-        "vae": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/CESC/vae_50.ckpt",
-    },
-    "COAD": {
-        "diffusion": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/COAD/diffusion_50.ckpt",
-        "vae": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/COAD/vae_50.ckpt",
-    },
-    "NSCLC": {
-        "diffusion": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/NSCLC/diffusion_50.ckpt",
-        "vae": "https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/NSCLC/vae_50.ckpt",
-    }
-}
+# No public LuminaST checkpoints are published yet. Keep this registry EMPTY so the CLI
+# cannot fetch non-existent artifacts (issue #71). Populate only when a real host exists.
+PUBLISHED_CHECKPOINTS: dict[str, dict[str, str]] = {}
+
+NO_PUBLIC_CHECKPOINTS_MSG = (
+    "No public LuminaST checkpoints are published. The downloader is disabled until a real "
+    "artifact host exists; train locally or pass an explicit local checkpoint path."
+)
 
 
 def download_file(url: str, dest_path: str, dry_run: bool = False, timeout: float = 30.0) -> None:
@@ -58,14 +52,11 @@ def main() -> None:
     args = parser.parse_args()
 
     cancer = args.cancer_type.upper()
-    if cancer not in DEFAULT_DOWNLOAD_MAP:
-        print(f"Warning: Cancer type '{cancer}' not found in default download map.")
-        print(f"Available types: {list(DEFAULT_DOWNLOAD_MAP.keys())}")
-        diff_url = f"https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/{cancer}/diffusion_50.ckpt"
-        vae_url = f"https://huggingface.co/datasets/spatial-omics/lumina-st/resolve/main/{cancer}/vae_50.ckpt"
-    else:
-        diff_url = DEFAULT_DOWNLOAD_MAP[cancer]["diffusion"]
-        vae_url = DEFAULT_DOWNLOAD_MAP[cancer]["vae"]
+    if cancer not in PUBLISHED_CHECKPOINTS:
+        parser.exit(2, f"{NO_PUBLIC_CHECKPOINTS_MSG} Requested cancer_type={cancer!r}.\n")
+
+    diff_url = PUBLISHED_CHECKPOINTS[cancer]["diffusion"]
+    vae_url = PUBLISHED_CHECKPOINTS[cancer]["vae"]
 
     os.makedirs(args.output_dir, exist_ok=True)
     diff_dest = os.path.join(args.output_dir, f"lumina_{cancer.lower()}_50.ckpt")
